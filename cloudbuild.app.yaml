@@ -22,7 +22,6 @@ steps:
       - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-app:$COMMIT_SHA
       - --region=europe-west1
       - --platform=managed
-      - --allow-unauthenticated
       - --concurrency=8
       - --max-instances=4
       - --set-env-vars=FLASK_DEBUG=0

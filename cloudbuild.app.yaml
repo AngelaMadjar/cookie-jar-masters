@@ -26,7 +26,7 @@ steps:
       - --add-cloudsql-instances=dept-dinl-angela:europe-west1:cookie-jar-masters
       - --concurrency=8
       - --max-instances=4
-      - --set-env-vars=FLASK_DEBUG=0,DB_USER=postgres,DB_NAME=cookie_jar_masters,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
+      - --set-env-vars=FLASK_DEBUG=0,DB_USER=postgres,DB_NAME=cookie-jar-masters,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
       - --set-secrets=DB_PASSWORD=cookie-jar-masters-db-password:latest
 
 options:

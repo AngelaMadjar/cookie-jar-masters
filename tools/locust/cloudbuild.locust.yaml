@@ -25,7 +25,6 @@ steps:
       - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
       - --tasks=1
       - --max-retries=0
-      # Optional in step 2: --service-account, --set-env-vars, --vpc-connector
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,27 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - tools/locust/Dockerfile
+      - -t
+      - europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-locust:$COMMIT_SHA
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-locust:$COMMIT_SHA
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - cookie-jar-locust-e2
+      - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-locust:$COMMIT_SHA
+      - --region=europe-west1
+      - --tasks=1
+      - --max-retries=0
+      # Optional in step 2: --service-account, --set-env-vars, --vpc-connector

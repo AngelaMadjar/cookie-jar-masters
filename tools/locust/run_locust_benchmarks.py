@@ -6,14 +6,15 @@ import csv
 import json
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 from statistics import median
 
 import requests
+from google.cloud import storage
 
 
 CASE_TO_FOLDER = {
@@ -25,6 +26,12 @@ CASE_TO_FOLDER = {
     "T6": "T6_skewed_existing_heavy",
     "T7": "T7_skewed_new_heavy",
 }
+
+GCS_BUCKET = "e2-data"
+RUNTIME_INPUT_PREFIX = "monthly_tracker_audits/input"
+RUNTIME_PROCESSED_PREFIX = "monthly_tracker_audits/processed"
+RUNTIME_FAILED_PREFIX = "monthly_tracker_audits/failed"
+_STORAGE_CLIENT: storage.Client | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -58,6 +65,47 @@ def _percentile(values: list[float], p: float) -> float:
     return float(ordered[idx])
 
 
+def storage_client() -> storage.Client:
+    # E2 GCS adaptation: runner now orchestrates benchmark artifacts directly in GCS.
+    global _STORAGE_CLIENT
+    if _STORAGE_CLIENT is None:
+        _STORAGE_CLIENT = storage.Client()
+    return _STORAGE_CLIENT
+
+
+def parse_gs_uri(gs_uri: str) -> tuple[str, str]:
+    # E2 GCS adaptation: parse gs:// URIs instead of local filesystem paths.
+    if not gs_uri.startswith("gs://"):
+        raise ValueError(f"Expected gs:// path, got: {gs_uri}")
+    raw = gs_uri[len("gs://"):]
+    bucket, sep, blob = raw.partition("/")
+    if not sep or not bucket or not blob:
+        raise ValueError(f"Invalid gs:// path: {gs_uri}")
+    return bucket, blob
+
+
+def upload_text_gs(gs_uri: str, content: str, content_type: str = "application/json"):
+    # E2 GCS adaptation: persist runner artifacts to GCS.
+    bucket_name, blob_name = parse_gs_uri(gs_uri)
+    storage_client().bucket(bucket_name).blob(blob_name).upload_from_string(content, content_type=content_type)
+
+
+def download_text_gs(gs_uri: str) -> str:
+    # E2 GCS adaptation: load manifests/aggregates directly from GCS.
+    bucket_name, blob_name = parse_gs_uri(gs_uri)
+    return storage_client().bucket(bucket_name).blob(blob_name).download_as_text()
+
+
+def delete_prefix_gs(bucket_name: str, prefix: str) -> int:
+    # E2 GCS adaptation: clear monthly input/processed/failed using GCS prefix deletion.
+    bucket = storage_client().bucket(bucket_name)
+    deleted = 0
+    for blob in storage_client().list_blobs(bucket, prefix=prefix):
+        blob.delete()
+        deleted += 1
+    return deleted
+
+
 def _post_ok(host: str, endpoint: str, payload: dict):
     print(f"  -> POST {endpoint}")
     resp = requests.post(f"{host}{endpoint}", json=payload, timeout=1800)
@@ -74,58 +122,62 @@ def reset_and_seed_db(host: str):
 
 
 def clear_month_dirs(month: str):
-    print(f"Step 2/5: Clear monthly runtime folders for {month}")
-    for branch in ("input", "processed", "failed"):
-        folder = Path("data/monthly_tracker_audits") / branch / month
-        folder.mkdir(parents=True, exist_ok=True)
-        removed = 0
-        for existing in folder.glob("*.csv"):
-            existing.unlink(missing_ok=True)
-            removed += 1
-        print(f"  Cleared {removed} files from {folder}")
+    # E2 GCS adaptation: cleanup moved from local monthly directories to GCS prefixes.
+    print(f"Step 2/5: Clear monthly runtime prefixes in GCS for {month}")
+    targets = [
+        f"{RUNTIME_INPUT_PREFIX}/{month}/",
+        f"{RUNTIME_PROCESSED_PREFIX}/{month}/",
+        f"{RUNTIME_FAILED_PREFIX}/{month}/",
+    ]
+    for prefix in targets:
+        removed = delete_prefix_gs(GCS_BUCKET, prefix)
+        print(f"  Cleared {removed} objects from gs://{GCS_BUCKET}/{prefix}")
 
 
 def load_manifest(case: str) -> list[str]:
     case_folder = CASE_TO_FOLDER[case]
-    manifest_path = Path("data/benchmarks") / case_folder / "manifest" / "manifest.json"
-    if not manifest_path.exists():
-        raise FileNotFoundError(f"Manifest not found: {manifest_path}")
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    # E2 GCS adaptation: manifests are read from GCS to avoid container-local benchmark dependencies.
+    manifest_path = f"gs://{GCS_BUCKET}/benchmarks/{case_folder}/manifest/manifest.json"
+    payload = json.loads(download_text_gs(manifest_path))
     paths = payload.get("generated_file_paths") or []
     if len(paths) == 0:
         raise ValueError(f"No generated_file_paths in manifest: {manifest_path}")
-    return [str(Path(p)) for p in paths]
+    return [str(p) for p in paths]
 
 
 def stage_files(file_paths: list[str], month: str, total_requests: int) -> list[str]:
-    print(f"Step 3/5: Stage {total_requests} files into monthly input")
+    # E2 GCS adaptation: file staging moved from local copy into local input to GCS copy into GCS input.
+    print(f"Step 3/5: Stage {total_requests} files into GCS monthly input")
     if len(file_paths) < total_requests:
         raise ValueError(f"Manifest contains only {len(file_paths)} files, expected at least {total_requests}")
     chosen = file_paths[:total_requests]
-    target_dir = Path("data/monthly_tracker_audits/input") / month
-    target_dir.mkdir(parents=True, exist_ok=True)
     staged_paths: list[str] = []
-    for src_str in chosen:
-        src = Path(src_str)
-        if not src.exists():
-            raise FileNotFoundError(f"Source CSV missing: {src}")
-        target = target_dir / src.name
-        shutil.copy2(src, target)
-        staged_paths.append(str(target))
-    print(f"  Staged {len(staged_paths)} files into {target_dir}")
+    bucket = storage_client().bucket(GCS_BUCKET)
+    for src_gs in chosen:
+        src_bucket_name, src_blob_name = parse_gs_uri(src_gs)
+        src_bucket = storage_client().bucket(src_bucket_name)
+        src_blob = src_bucket.blob(src_blob_name)
+        if not src_blob.exists():
+            raise FileNotFoundError(f"Source CSV missing in GCS: {src_gs}")
+        filename = Path(src_blob_name).name
+        dst_blob_name = f"{RUNTIME_INPUT_PREFIX}/{month}/{filename}"
+        src_bucket.copy_blob(src_blob, bucket, new_name=dst_blob_name)
+        staged_paths.append(f"gs://{GCS_BUCKET}/{dst_blob_name}")
+    print(f"  Staged {len(staged_paths)} files into gs://{GCS_BUCKET}/{RUNTIME_INPUT_PREFIX}/{month}/")
     return staged_paths
 
 
-def case_results_dir(case: str, results_root_override: str) -> Path:
+def case_results_dir(case: str, results_root_override: str) -> str:
+    # E2 GCS adaptation: default benchmark result root is now in GCS.
     if results_root_override.strip():
-        return Path(results_root_override)
-    return Path("data/benchmarks") / CASE_TO_FOLDER[case] / "locust_results"
+        return results_root_override.rstrip("/")
+    return f"gs://{GCS_BUCKET}/benchmarks/{CASE_TO_FOLDER[case]}/locust_results"
 
 
-def run_locust(args, run_spec_payload: dict, raw_json_path: Path) -> int:
+def run_locust(args, run_spec_payload: dict, raw_json_path: str) -> int:
     env = os.environ.copy()
     env["LOCUST_RUN_SPEC_JSON"] = json.dumps(run_spec_payload)
-    env["LOCUST_RAW_JSON_PATH"] = str(raw_json_path)
+    env["LOCUST_RAW_JSON_PATH"] = raw_json_path
     env["LOCUST_MONTH"] = args.month
     env["LOCUST_RUNTIME_FILE_LIST_PATH"] = "tools/locust/runtime_input_files_2026-02.json"
 
@@ -151,8 +203,8 @@ def run_locust(args, run_spec_payload: dict, raw_json_path: Path) -> int:
     return int(completed.returncode)
 
 
-def load_raw_records(path: Path) -> list[dict]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+def load_raw_records(path: str) -> list[dict]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
     return payload.get("records") or []
 
 
@@ -207,32 +259,36 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, repe
     }
 
 
-def write_case_outputs(case_dir: Path, run_row: dict, records_payload: dict):
-    raw_dir = case_dir / "raw"
-    agg_dir = case_dir / "aggregated"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    agg_dir.mkdir(parents=True, exist_ok=True)
+def write_case_outputs(case_dir: str, run_row: dict, records_payload: dict):
+    # E2 GCS adaptation: benchmark outputs are written to GCS instead of local benchmark folders.
     run_id = run_row["run_id"]
-    raw_path = raw_dir / f"{run_id}.json"
-    raw_path.write_text(json.dumps(records_payload, indent=2), encoding="utf-8")
+    raw_path = f"{case_dir}/raw/{run_id}.json"
+    upload_text_gs(raw_path, json.dumps(records_payload, indent=2), content_type="application/json")
 
-    runs_csv = agg_dir / "runs.csv"
+    runs_csv = f"{case_dir}/aggregated/runs.csv"
     fields = list(run_row.keys())
-    file_exists = runs_csv.exists()
-    with runs_csv.open("a", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=fields)
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(run_row)
+    rows: list[dict] = []
+    try:
+        existing_csv = download_text_gs(runs_csv)
+        rows = list(csv.DictReader(StringIO(existing_csv)))
+    except Exception:
+        rows = []
+    rows.append(run_row)
+
+    out = StringIO()
+    writer = csv.DictWriter(out, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(rows)
+    upload_text_gs(runs_csv, out.getvalue(), content_type="text/csv")
 
 
-def write_case_summary(case_dir: Path):
-    agg_dir = case_dir / "aggregated"
-    runs_csv = agg_dir / "runs.csv"
-    if not runs_csv.exists():
-        return
-    with runs_csv.open("r", newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
+def write_case_summary(case_dir: str):
+    # E2 GCS adaptation: summary aggregation is loaded/saved via GCS CSV objects.
+    runs_csv = f"{case_dir}/aggregated/runs.csv"
+    try:
+        rows = list(csv.DictReader(StringIO(download_text_gs(runs_csv))))
+    except Exception:
+        rows = []
     if not rows:
         return
     numeric_keys = [
@@ -260,11 +316,12 @@ def write_case_summary(case_dir: Path):
         summary[f"{k}_min"] = round(min(vals), 6)
         summary[f"{k}_max"] = round(max(vals), 6)
 
-    summary_path = agg_dir / "summary.csv"
-    with summary_path.open("w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=list(summary.keys()))
-        writer.writeheader()
-        writer.writerow(summary)
+    summary_path = f"{case_dir}/aggregated/summary.csv"
+    out = StringIO()
+    writer = csv.DictWriter(out, fieldnames=list(summary.keys()))
+    writer.writeheader()
+    writer.writerow(summary)
+    upload_text_gs(summary_path, out.getvalue(), content_type="text/csv")
 
 
 def main():
@@ -280,7 +337,6 @@ def main():
 
     for case in test_cases:
         case_dir = case_results_dir(case, args.results_dir)
-        case_dir.mkdir(parents=True, exist_ok=True)
         manifest_paths = load_manifest(case)
 
         for repeat_index in range(1, args.repeats + 1):
@@ -288,9 +344,10 @@ def main():
             print(f"\n=== {case} repeat {repeat_index} ({run_id}) ===")
             reset_and_seed_db(args.host)
             clear_month_dirs(args.month)
-            staged_paths = stage_files(manifest_paths, args.month, args.total_requests)
+            stage_files(manifest_paths, args.month, args.total_requests)
 
-            raw_json_path = case_dir / "raw" / f"{run_id}.json"
+            # Locust writes run details locally; runner then uploads persisted artifacts to GCS.
+            raw_json_path = f"/tmp/{run_id}.json"
             run_spec_payload = {
                 "test_case": case,
                 "run_id": run_id,
@@ -299,12 +356,12 @@ def main():
             if exit_code != 0:
                 print(f"  Locust exited with code {exit_code}. Aggregating partial/failed run from raw results.")
 
-            if not raw_json_path.exists():
+            if not Path(raw_json_path).exists():
                 raise RuntimeError(
                     f"Raw results not found for run {run_id} at {raw_json_path}. "
                     f"Locust exit code was {exit_code}."
                 )
-            records_payload = json.loads(raw_json_path.read_text(encoding="utf-8"))
+            records_payload = json.loads(Path(raw_json_path).read_text(encoding="utf-8"))
             records = records_payload.get("records") or []
             run_row = aggregate_run_metrics(records, run_id, case, repeat_index, exit_code)
             print("Step 5/5: Write results")
@@ -316,17 +373,18 @@ def main():
                 f"records/s={run_row['records_per_sec']}, "
                 f"max_parallel={run_row['max_active_processing_requests_observed']}"
             )
-            print(f"  Raw JSON: {raw_json_path}")
+            print(f"  Raw JSON (local temp): {raw_json_path}")
+            print(f"  Raw JSON (GCS): {case_dir}/raw/{run_id}.json")
 
         write_case_summary(case_dir)
         print(f"Completed case {case}. Results: {case_dir}")
-        print(f"  Aggregated CSV: {case_dir / 'aggregated' / 'runs.csv'}")
-        print(f"  Summary CSV: {case_dir / 'aggregated' / 'summary.csv'}")
+        print(f"  Aggregated CSV: {case_dir}/aggregated/runs.csv")
+        print(f"  Summary CSV: {case_dir}/aggregated/summary.csv")
 
     if args.results_dir.strip():
         print(f"\nAll done. Results root override: {args.results_dir}")
     else:
-        print("\nAll done. Results written under each data/benchmarks/<case>/locust_results folder.")
+        print("\nAll done. Results written under gs://e2-data/benchmarks/<case>/locust_results.")
 
 
 if __name__ == "__main__":

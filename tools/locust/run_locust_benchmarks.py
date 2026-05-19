@@ -12,10 +12,13 @@ from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 from statistics import median
+from urllib.parse import quote
 
 import requests
 from google.cloud import storage
 
+# Example arguments to pass to the Locust Cloud Run job
+# --host,https://cookie-jar-app-e2-656924888958.europe-west1.run.app,--test-cases,T1,--repeats,3,--users,80,--spawn-rate,80,--total-requests,80
 
 CASE_TO_FOLDER = {
     "T1": "T1_original",
@@ -32,6 +35,7 @@ RUNTIME_INPUT_PREFIX = "monthly_tracker_audits/input"
 RUNTIME_PROCESSED_PREFIX = "monthly_tracker_audits/processed"
 RUNTIME_FAILED_PREFIX = "monthly_tracker_audits/failed"
 _STORAGE_CLIENT: storage.Client | None = None
+_ID_TOKEN_CACHE: dict[str, str] = {}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -108,9 +112,35 @@ def delete_prefix_gs(bucket_name: str, prefix: str) -> int:
 
 def _post_ok(host: str, endpoint: str, payload: dict):
     print(f"  -> POST {endpoint}")
-    resp = requests.post(f"{host}{endpoint}", json=payload, timeout=1800)
+    resp = requests.post(
+        f"{host}{endpoint}",
+        json=payload,
+        headers=_cloud_run_auth_headers(host),
+        timeout=1800,
+    )
     if resp.status_code != 200:
         raise RuntimeError(f"{endpoint} failed: {resp.status_code} {resp.text}")
+
+
+def _cloud_run_id_token(audience: str) -> str:
+    # E2 GCS adaptation: Locust job must authenticate to private Cloud Run endpoints.
+    cached = _ID_TOKEN_CACHE.get(audience)
+    if cached:
+        return cached
+    metadata_url = (
+        "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity"
+        f"?audience={quote(audience, safe='')}"
+    )
+    resp = requests.get(metadata_url, headers={"Metadata-Flavor": "Google"}, timeout=30)
+    resp.raise_for_status()
+    token = resp.text.strip()
+    _ID_TOKEN_CACHE[audience] = token
+    return token
+
+
+def _cloud_run_auth_headers(host: str) -> dict[str, str]:
+    token = _cloud_run_id_token(host.rstrip("/"))
+    return {"Authorization": f"Bearer {token}"}
 
 
 def reset_and_seed_db(host: str):
@@ -180,6 +210,8 @@ def run_locust(args, run_spec_payload: dict, raw_json_path: str) -> int:
     env["LOCUST_RAW_JSON_PATH"] = raw_json_path
     env["LOCUST_MONTH"] = args.month
     env["LOCUST_RUNTIME_FILE_LIST_PATH"] = "tools/locust/runtime_input_files_2026-02.json"
+    # E2 GCS adaptation: pass a Cloud Run ID token so Locust users can call private service endpoints.
+    env["LOCUST_BEARER_TOKEN"] = _cloud_run_id_token(args.host.rstrip("/"))
 
     locustfile = Path("tools/locust/locustfile.py")
     cmd = [

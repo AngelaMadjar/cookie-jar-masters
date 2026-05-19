@@ -19,6 +19,7 @@ RUNTIME_FILE_LIST_PATH = os.getenv(
     "LOCUST_RUNTIME_FILE_LIST_PATH",
     "tools/locust/runtime_input_files_2026-02.json",
 )
+LOCUST_BEARER_TOKEN = os.getenv("LOCUST_BEARER_TOKEN", "")
 
 _lock = threading.Lock()
 _file_queue: deque[str] = deque()
@@ -176,7 +177,14 @@ class IngestUser(HttpUser):
         err: str | None = None
         latency_ms = 0.0
         try:
-            with self.client.post("/scan/ingest", json=body, catch_response=True, name="/scan/ingest") as response:
+            headers = {"Authorization": f"Bearer {LOCUST_BEARER_TOKEN}"} if LOCUST_BEARER_TOKEN else None
+            with self.client.post(
+                "/scan/ingest",
+                json=body,
+                headers=headers,
+                catch_response=True,
+                name="/scan/ingest",
+            ) as response:
                 status_code = response.status_code
                 latency_ms = (time.perf_counter() - start) * 1000.0
                 try:

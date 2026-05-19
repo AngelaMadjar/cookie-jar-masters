@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+www.accounts.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,JavaScript,_ga_failed_lookup_marker_55_16,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.com.hk,Essential cookies,CLIENT_X - Hong Kong,HTTP Cookie,_ga_failed_lookup_marker_55_41,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.com.hk,Essential cookies,CLIENT_X - Hong Kong,HTTP Cookie,_ga_failed_lookup_marker_55_44,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+analytics-fe.digital-cloud-us-main.medallia.com,Performance cookies,Medallia,Beacon,_ga_failed_lookup_marker_55_68,,,,https://www.CLIENT_X.com.hk/en/a-w/about.html,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+region1.google-analytics.com,Performance cookies,Google Inc.,HTTP Cookie,_ga_failed_lookup_marker_55_70,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+*.mktoweb.com,Targeted Advertising cookies (including social media),Marketo,Local Storage,_ga_failed_lookup_marker_55_71,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+munchkin.marketo.net,Targeted Advertising cookies (including social media),Marketo,ETag,_ga_failed_lookup_marker_55_78,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_Xb2c.file.force.com,Essential cookies,"Salesforce.com, Inc.",HTTP Cookie,_ga_failed_lookup_marker_55_82,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.hk,Essential cookies,CLIENT_X - Hong Kong,HTTP Cookie,_ga_failed_lookup_marker_55_84,,0,TRUE,https://www.CLIENT_X.com.hk/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+nebula-cdn.kampyle.com,Performance cookies,Medallia,JavaScript,_ga_failed_lookup_marker_55_92,,,TRUE,http://www.CLIENT_X.com.hk/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.hk,Essential cookies,CLIENT_X - Hong Kong,HTTP Cookie,_ga_failed_lookup_marker_55_125,,session,TRUE,https://www.CLIENT_X.com.hk/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+static.hotjar.com,Performance cookies,Hotjar,JavaScript,_ga_failed_lookup_marker_55_143,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.com.hk,Essential cookies,CLIENT_X - Hong Kong,HTTP Cookie,_ga_failed_lookup_marker_55_145,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_Xb2c.my.site.com,Performance cookies,"Salesforce.com, Inc.",ETag,_ga_failed_lookup_marker_55_150,,,TRUE,https://www.CLIENT_X.com.hk/c-w/support-home/support-contact-page,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+cdn.channelsight.com,Essential cookies,ChannelSight,ETag,_ga_failed_lookup_marker_55_166,,,TRUE,https://www.CLIENT_X.com.hk/c-p/BHD837_03,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+static.cloud.coveo.com,Targeted Advertising cookies (including social media),Coveo Solutions Inc.,JavaScript,_ga_failed_lookup_marker_55_173,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.uk,Essential cookies,CLIENT_X - United Kingdom,HTTP Cookie,_ga_failed_lookup_marker_55_177,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+cdn.mouseflow.com,Performance cookies,Mouseflow,ETag,_ga_failed_lookup_marker_55_180,,,,https://www.CLIENT_X.com.hk/c-m-pe/hair-removal/epilators,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+sc-static.net,Targeted Advertising cookies (including social media),Snap Inc.,HTTP Cookie,_ga_failed_lookup_marker_55_182,,1,TRUE,https://www.CLIENT_X.com.hk/c-e/ho/air-purifier-and-air-humidifier/air-care.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.com.hk,Essential cookies,CLIENT_X - Hong Kong,HTTP Cookie,_ga_failed_lookup_marker_55_196,,1,,http://www.CLIENT_X.com.hk/,New First Party Trackers,,,,,,tracker_name_pattern_not_applied

@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+sc-static.net,Targeted Advertising cookies (including social media),Snap Inc.,ETag,_ga_failed_lookup_marker_46_9,,,TRUE,https://www.CLIENT_X.co.za/c-e/ho/homeid-app.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.accounts.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,JavaScript,_ga_failed_lookup_marker_46_13,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+*.mktoweb.com,Targeted Advertising cookies (including social media),Marketo,JavaScript,_ga_failed_lookup_marker_46_19,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+nebula-cdn.kampyle.com,Performance cookies,Medallia,JavaScript,_ga_failed_lookup_marker_46_27,,,TRUE,http://www.CLIENT_X.co.za/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+dsum-sec.casalemedia.com,Targeted Advertising cookies (including social media),Index Exchange Inc.,Beacon,_ga_failed_lookup_marker_46_31,,,TRUE,https://www.CLIENT_X.co.za/a-w/about,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+lux.speedcurve.com,Performance cookies,Speedcurve,JavaScript,_ga_failed_lookup_marker_46_36,,,,https://www.CLIENT_X.co.za/healthcare,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.za,Essential cookies,CLIENT_X - South Africa,HTTP Cookie,_ga_failed_lookup_marker_46_50,,365,TRUE,https://www.CLIENT_X.co.za/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+t.co,Targeted Advertising cookies (including social media),X (formerly Twitter),HTTP Cookie,_ga_failed_lookup_marker_46_73,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.co.za,Essential cookies,CLIENT_X - South Africa,HTTP Cookie,_ga_failed_lookup_marker_46_80,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.realpro.lighting.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,ETag,_ga_failed_lookup_marker_46_89,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.co.za,Essential cookies,CLIENT_X - South Africa,HTTP Cookie,_ga_failed_lookup_marker_46_93,,365,TRUE,https://www.CLIENT_X.co.za/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+nebula-cdn.kampyle.com,Performance cookies,Medallia,JavaScript,_ga_failed_lookup_marker_46_97,,,TRUE,http://www.CLIENT_X.co.za/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.za,Essential cookies,CLIENT_X - South Africa,HTTP Cookie,_ga_failed_lookup_marker_46_108,,365,TRUE,https://www.CLIENT_X.co.za/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+*.mktoweb.com,Targeted Advertising cookies (including social media),Marketo,JavaScript,_ga_failed_lookup_marker_46_119,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.za,Essential cookies,CLIENT_X - South Africa,HTTP Cookie,_ga_failed_lookup_marker_46_125,,90,,https://www.CLIENT_X.co.za/,New First Party Trackers,,,,,,tracker_name_pattern_not_applied
+static.hotjar.com,Performance cookies,Hotjar,JavaScript,_ga_failed_lookup_marker_46_128,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+cdn.jsdelivr.net,Performance cookies,Volentio JSD Limited,ETag,_ga_failed_lookup_marker_46_129,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.co.za,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_46_161,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+eloqua.com,Targeted Advertising cookies (including social media),Oracle Marketing,HTTP Cookie,_ga_failed_lookup_marker_46_175,,392,TRUE,https://www.CLIENT_X.co.za/healthcare/sites/lumify-handheld-ultrasound,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+sc-static.net,Targeted Advertising cookies (including social media),Snap Inc.,ETag,_ga_failed_lookup_marker_46_184,,,TRUE,https://www.CLIENT_X.co.za/c-e/ho/homeid-app.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied

@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+www.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,JavaScript,_ga_failed_lookup_marker_40_4,,,TRUE,https://www.CLIENT_X.co.in/healthcare/product/HC866199,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+recaptcha.net,Performance cookies,Google Inc.,Local Storage,_ga_failed_lookup_marker_40_6,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.in,Essential cookies,CLIENT_X - India,HTTP Cookie,_ga_failed_lookup_marker_40_12,,60,TRUE,https://www.CLIENT_X.co.in/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.co.in,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_40_17,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.co.in,Essential cookies,CLIENT_X - India,ETag,_ga_failed_lookup_marker_40_30,,,TRUE,https://www.CLIENT_X.co.in/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.domesticappliances.CLIENT_X.co.in,Essential cookies,CLIENT_X - India,HTTP Cookie,_ga_failed_lookup_marker_40_31,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.in,Essential cookies,CLIENT_X - India,HTTP Cookie,_ga_failed_lookup_marker_40_53,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+cm.g.doubleclick.net,Targeted Advertising cookies (including social media),Google Advertising Products,Beacon,_ga_failed_lookup_marker_40_55,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+dpm.demdex.net,Targeted Advertising cookies (including social media),"Adobe Audience Manager, Adobe Experience Cloud",HTTP Cookie,_ga_failed_lookup_marker_40_68,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.patientcare.shop.CLIENT_X.co.in,Essential cookies,CLIENT_X - India,HTTP Cookie,_ga_failed_lookup_marker_40_96,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.in,Essential cookies,CLIENT_X - India,HTTP Cookie,_ga_failed_lookup_marker_40_109,,0,TRUE,https://www.CLIENT_X.co.in/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+recapads.com,Targeted Advertising cookies (including social media),Unknown,ETag,_ga_failed_lookup_marker_40_110,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+cm.g.doubleclick.net,Targeted Advertising cookies (including social media),Google Advertising Products,Beacon,_ga_failed_lookup_marker_40_123,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_Xb2c.my.site.com,Performance cookies,"Salesforce.com, Inc.",Local Storage,_ga_failed_lookup_marker_40_152,,,TRUE,https://www.CLIENT_X.co.in/c-w/support-home/support-contact-page.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.co.in,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_40_164,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+tag-logger.demandbase.com,Targeted Advertising cookies (including social media),"Demandbase, Inc.",ETag,_ga_failed_lookup_marker_40_167,,,,https://www.CLIENT_X.co.in/a-w/about-CLIENT_X/company.html,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+cdn1.staticans.com,Targeted Advertising cookies (including social media),Unknown,ETag,_ga_failed_lookup_marker_40_187,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.in,Essential cookies,CLIENT_X - India,HTTP Cookie,_ga_failed_lookup_marker_40_195,,90,TRUE,https://www.CLIENT_X.co.in/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.in,Essential cookies,CLIENT_X - India,HTTP Cookie,_ga_failed_lookup_marker_40_196,,90,TRUE,https://www.CLIENT_X.co.in/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+youtube.com,Targeted Advertising cookies (including social media),Google Advertising Products,Local Storage,_ga_failed_lookup_marker_40_197,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied

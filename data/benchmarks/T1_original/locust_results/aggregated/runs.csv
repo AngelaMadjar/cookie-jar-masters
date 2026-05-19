@@ -1,0 +1,4 @@
+run_id,test_case,repeat_index,requests_total,requests_ok,requests_failed,total_processing_time_sec,files_per_sec,records_per_sec,processing_time_p50_sec,processing_time_p95_sec,end_to_end_latency_p95_sec,queue_wait_time_p95_sec,created_trackers_total,existing_trackers_total,failed_rows_total,max_active_processing_requests_observed,max_active_requests_seen_observed
+T1_r1_20260516T163233Z,T1,1,80,80,0,289.991725,0.27587,822.20622,1.026702,5.373158,5.392128,0.050518,219384,7890,48,8,8
+T1_r2_20260516T163731Z,T1,2,80,80,0,288.784975,0.277023,825.641985,0.897992,5.004198,5.05782,0.046704,219381,7893,48,8,8
+T1_r3_20260516T164226Z,T1,3,80,80,0,271.277092,0.294901,878.927882,0.916906,5.357732,5.392043,0.034478,219255,8019,48,8,8

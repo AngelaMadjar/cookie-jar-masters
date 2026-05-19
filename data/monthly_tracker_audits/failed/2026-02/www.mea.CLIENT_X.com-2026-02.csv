@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+www.lighting.CLIENT_X.sa,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_79_0,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.ae,Essential cookies,CLIENT_X - Middle East Arab,HTTP Cookie,_ga_failed_lookup_marker_79_3,,365,,https://www.CLIENT_X.ae/,New First Party Trackers,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.jo,Essential cookies,CLIENT_X - Jordan,HTTP Cookie,_ga_failed_lookup_marker_79_8,,0,TRUE,https://www.CLIENT_X.jo/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.sa,Performance cookies,CLIENT_X - Kingdom of Saudi Arabia,HTTP Cookie,_ga_failed_lookup_marker_79_26,,session,TRUE,https://www.CLIENT_X.sa/c-m-ho/cooking/toaster/latest,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.qa,Essential cookies,CLIENT_X - Qatar,HTTP Cookie,_ga_failed_lookup_marker_79_30,,365,TRUE,https://www.CLIENT_X.com.qa/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.ae,Essential cookies,CLIENT_X - Middle East Arab,HTTP Cookie,_ga_failed_lookup_marker_79_31,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+images.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,ETag,_ga_failed_lookup_marker_79_38,,,TRUE,https://www.CLIENT_X.ae/c-p/AIS8540_80/all-in-one-ironing-solutions-all-in-one-8500-series,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+cdn.mouseflow.com,Performance cookies,Mouseflow,ETag,_ga_failed_lookup_marker_79_46,,,,https://www.CLIENT_X.ae/c-m-pe/hair-removal/lumea-ipl,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+labs.iadvize.com,Performance cookies,iAdvize,JavaScript,_ga_failed_lookup_marker_79_57,,,TRUE,https://www.CLIENT_X.sa/c-e/ho/air-purifier-and-air-humidifier/air-performer-series-8000.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.sa,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_79_58,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+s334834414.t.eloqua.com,Performance cookies,Oracle Marketing,JavaScript,_ga_failed_lookup_marker_79_59,,,,https://www.CLIENT_X.com.qa/healthcare/product/HC722227,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.jo,Essential cookies,,HTTP Cookie,_ga_failed_lookup_marker_79_67,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.jo,Essential cookies,,HTTP Cookie,_ga_failed_lookup_marker_79_72,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_Xb2c.lightning.force.com,Essential cookies,"Salesforce.com, Inc.",HTTP Cookie,_ga_failed_lookup_marker_79_87,,365,TRUE,https://www.CLIENT_X.ae/c-f/XC000019471/CLIENT_X-one-battery-replacement-instructions,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.recaptcha.net,Performance cookies,Google Inc.,JavaScript,_ga_failed_lookup_marker_79_100,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_Xb2c.my.site.com,Performance cookies,"Salesforce.com, Inc.",Beacon,_ga_failed_lookup_marker_79_107,,,TRUE,,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+halc.iadvize.com,Performance cookies,iAdvize,JavaScript,_ga_failed_lookup_marker_79_121,,,TRUE,https://www.CLIENT_X.sa/c-e/ho/air-purifier-and-air-humidifier/air-performer-series-8000.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.sa,Essential cookies,CLIENT_X - Kingdom of Saudi Arabia,HTTP Cookie,_ga_failed_lookup_marker_79_135,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+tracker-detail-page.trustarc.com,Essential cookies,TrustArc,ETag,_ga_failed_lookup_marker_79_163,,,,https://www.CLIENT_X.ae/a-w/cookie-notice,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+acc.CLIENT_X.sa,Essential cookies,CLIENT_X - Kingdom of Saudi Arabia,ETag,_ga_failed_lookup_marker_79_185,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied

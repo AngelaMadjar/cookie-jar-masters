@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+CLIENT_X.co.kr,Essential cookies,CLIENT_X - Korea,HTTP Cookie,_ga_failed_lookup_marker_43_14,,393,TRUE,https://www.CLIENT_X.co.kr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.kr,Essential cookies,CLIENT_X - Korea,HTTP Cookie,_ga_failed_lookup_marker_43_19,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.kr,Essential cookies,CLIENT_X - Korea,HTTP Cookie,_ga_failed_lookup_marker_43_45,,session,TRUE,https://www.CLIENT_X.co.kr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+demdex.net,Targeted Advertising cookies (including social media),"Adobe Audience Manager, Adobe Experience Platform",HTTP Cookie,_ga_failed_lookup_marker_43_51,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.kr,Performance cookies,CLIENT_X - Korea,HTTP Cookie,_ga_failed_lookup_marker_43_52,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+smetrics.marketing.lighting.CLIENT_X.com,Targeted Advertising cookies (including social media),Koninklijke CLIENT_X N.V.,JavaScript,_ga_failed_lookup_marker_43_55,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+force.com,Essential cookies,"salesforce.com, inc.",HTTP Cookie,_ga_failed_lookup_marker_43_66,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.co.kr,Performance cookies,CLIENT_X - Korea,HTTP Cookie,_ga_failed_lookup_marker_43_81,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+smetrics.marketing.CLIENT_X-hue.com,Targeted Advertising cookies (including social media),CLIENT_X Hue,JavaScript,_ga_failed_lookup_marker_43_82,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.family.CLIENT_X.co.kr,Essential cookies,CLIENT_X - Korea,JavaScript,_ga_failed_lookup_marker_43_83,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.google.com,Targeted Advertising cookies (including social media),Google Inc.,Beacon,_ga_failed_lookup_marker_43_104,,,TRUE,https://www.CLIENT_X.co.kr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+*.mktoweb.com,Targeted Advertising cookies (including social media),Marketo,Local Storage,_ga_failed_lookup_marker_43_108,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.co.kr,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_43_149,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_Xb2c.my.salesforce-scrt.com,Performance cookies,"Salesforce.com, Inc.",Beacon,_ga_failed_lookup_marker_43_164,,,,https://www.CLIENT_X.co.kr/c-w/support-home/support-contact-page,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.co.kr,Essential cookies,CLIENT_X - Korea,HTTP Cookie,_ga_failed_lookup_marker_43_166,,365,TRUE,https://www.CLIENT_X.co.kr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.co.kr,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_43_172,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.co.kr,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_43_174,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+assets.adobedtm.com,Performance cookies,Adobe Inc.,JavaScript,_ga_failed_lookup_marker_43_178,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.co.kr,Essential cookies,CLIENT_X - Korea,JavaScript,_ga_failed_lookup_marker_43_184,,,TRUE,https://www.CLIENT_X.co.kr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.co.kr,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_43_190,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied

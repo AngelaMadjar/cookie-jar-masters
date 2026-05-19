@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+consent.trustarc.com,Essential cookies,TrustArc,Beacon,_ga_failed_lookup_marker_14_9,,,TRUE,https://www.CLIENT_X.hr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.hr,Essential cookies,Signify (formerly CLIENT_X Lighting),Local Storage,_ga_failed_lookup_marker_14_23,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.hr,Essential cookies,CLIENT_X - Croatia,HTTP Cookie,_ga_failed_lookup_marker_14_25,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+assets.adobedtm.com,Performance cookies,Adobe Inc.,ETag,_ga_failed_lookup_marker_14_39,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.hr,Essential cookies,Signify (formerly CLIENT_X Lighting),JavaScript,_ga_failed_lookup_marker_14_47,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+cdn.jsdelivr.net,Performance cookies,Volentio JSD Limited,ETag,_ga_failed_lookup_marker_14_53,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.hr,Essential cookies,CLIENT_X - Croatia,HTTP Cookie,_ga_failed_lookup_marker_14_61,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.google.com,Targeted Advertising cookies (including social media),Google Inc.,JavaScript,_ga_failed_lookup_marker_14_75,,,TRUE,https://www.CLIENT_X.hr/c-e/new-CLIENT_X-member.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.crsc.lighting.CLIENT_X.com,Performance cookies,Signify (formerly CLIENT_X Lighting),JavaScript,_ga_failed_lookup_marker_14_80,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+region1.google-analytics.com,Performance cookies,Google Inc.,HTTP Cookie,_ga_failed_lookup_marker_14_92,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.hr,Essential cookies,CLIENT_X - Croatia,Beacon,_ga_failed_lookup_marker_14_99,,,TRUE,https://www.CLIENT_X.hr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.hr,Essential cookies,CLIENT_X - Croatia,HTTP Cookie,_ga_failed_lookup_marker_14_110,,90,,https://www.CLIENT_X.hr/,New First Party Trackers,,,,,,tracker_name_pattern_not_applied
+casalemedia.com,Targeted Advertising cookies (including social media),Index Exchange Inc.,HTTP Cookie,_ga_failed_lookup_marker_14_113,,90,TRUE,https://www.CLIENT_X.hr/a-w/pravila-o-kolacicima,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+static.cloud.coveo.com,Targeted Advertising cookies (including social media),Coveo Solutions Inc.,ETag,_ga_failed_lookup_marker_14_122,,,TRUE,https://www.CLIENT_X.hr/healthcare/about/support/resource-center/results,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+casalemedia.com,Targeted Advertising cookies (including social media),Index Exchange Inc.,HTTP Cookie,_ga_failed_lookup_marker_14_123,,90,TRUE,https://www.CLIENT_X.hr/a-w/pravila-o-kolacicima,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.hr,Essential cookies,CLIENT_X - Croatia,HTTP Cookie,_ga_failed_lookup_marker_14_141,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.hr,Essential cookies,CLIENT_X - Croatia,ETag,_ga_failed_lookup_marker_14_143,,,TRUE,https://www.CLIENT_X.hr/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_Xtest.scene7.com,Performance cookies,Adobe Experience Cloud - Experience Manager,ETag,_ga_failed_lookup_marker_14_147,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.google.com,Essential cookies,Google Inc.,HTTP Cookie,_ga_failed_lookup_marker_14_152,,180,TRUE,https://www.CLIENT_X.hr/c-e/new-CLIENT_X-member.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+youtube.com,Targeted Advertising cookies (including social media),Google Advertising Products,HTTP Cookie,_ga_failed_lookup_marker_14_196,,180,,https://www.CLIENT_X.hr/c-e/pe/dental-professionals,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied

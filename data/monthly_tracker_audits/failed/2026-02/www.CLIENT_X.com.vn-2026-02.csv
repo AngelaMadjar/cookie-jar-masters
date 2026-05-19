@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+linkedin.com,Targeted Advertising cookies (including social media),LinkedIn,HTTP Cookie,_ga_failed_lookup_marker_69_6,,365,TRUE,https://www.CLIENT_X.com.vn/c-e/ho/air-education.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.com.vn,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_69_14,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.vn,Essential cookies,CLIENT_X - Vietnam,HTTP Cookie,_ga_failed_lookup_marker_69_22,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.com.vn,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_69_24,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+dev.CLIENT_X.com.vn,Performance cookies,CLIENT_X - Vietnam,HTTP Cookie,_ga_failed_lookup_marker_69_34,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+assets.adobedtm.com,Performance cookies,Adobe Inc.,ETag,_ga_failed_lookup_marker_69_37,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,ETag,_ga_failed_lookup_marker_69_43,,,TRUE,https://www.CLIENT_X.com.vn/healthcare/sites/lumify-handheld-ultrasound/lumify-academy,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+assets.adobedtm.com,Performance cookies,Adobe Inc.,JavaScript,_ga_failed_lookup_marker_69_46,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+consent-st.trustarc.com,Essential cookies,TrustArc,JavaScript,_ga_failed_lookup_marker_69_50,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.com,Performance cookies,,HTTP Cookie,_ga_failed_lookup_marker_69_51,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.crsc.lighting.CLIENT_X.com,Performance cookies,Signify (formerly CLIENT_X Lighting),ETag,_ga_failed_lookup_marker_69_61,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,HTTP Cookie,_ga_failed_lookup_marker_69_66,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.vn,Essential cookies,CLIENT_X - Vietnam,HTTP Cookie,_ga_failed_lookup_marker_69_84,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+smetrics.marketing.lighting.CLIENT_X.com,Targeted Advertising cookies (including social media),Koninklijke CLIENT_X N.V.,JavaScript,_ga_failed_lookup_marker_69_86,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+maps.googleapis.com,Targeted Advertising cookies (including social media),Google Inc.,ETag,_ga_failed_lookup_marker_69_110,,,TRUE,https://www.CLIENT_X.com.vn/c-m-au/store-locator,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.com.vn,Essential cookies,CLIENT_X - Vietnam,HTTP Cookie,_ga_failed_lookup_marker_69_115,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.vn,Essential cookies,CLIENT_X - Vietnam,HTTP Cookie,_ga_failed_lookup_marker_69_142,,,,https://www.CLIENT_X.com.vn/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.com.vn,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_69_174,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.google.com,Targeted Advertising cookies (including social media),Google Inc.,JavaScript,_ga_failed_lookup_marker_69_184,,,TRUE,https://www.CLIENT_X.com.vn/healthcare/?FormType=MarketingInquiry,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+munchkin.marketo.net,Targeted Advertising cookies (including social media),Marketo,ETag,_ga_failed_lookup_marker_69_193,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied

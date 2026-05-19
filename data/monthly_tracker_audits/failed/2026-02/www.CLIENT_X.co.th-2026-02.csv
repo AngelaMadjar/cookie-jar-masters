@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+youtube.com,Targeted Advertising cookies (including social media),Google Advertising Products,HTTP Cookie,_ga_failed_lookup_marker_45_6,,session,TRUE,https://www.CLIENT_X.co.th/c-e/products.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.th,Performance cookies,CLIENT_X - Thailand,HTTP Cookie,_ga_failed_lookup_marker_45_12,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+beacon.speedcurve.com,Performance cookies,Speedcurve,Beacon,_ga_failed_lookup_marker_45_18,,,,https://www.CLIENT_X.co.th/c-m-ho/food-preparation,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.co.th,Essential cookies,CLIENT_X - Thailand,HTTP Cookie,_ga_failed_lookup_marker_45_24,,365,TRUE,https://www.CLIENT_X.co.th/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.co.th,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_45_27,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+*.t.eloqua.com,Targeted Advertising cookies (including social media),Oracle Marketing,Beacon,_ga_failed_lookup_marker_45_36,,,,https://www.CLIENT_X.co.th/content/B2B_HC/th_TH/clinical-solutions,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+widget-cdn.janraincapture.com,Performance cookies,Akamai,JavaScript,_ga_failed_lookup_marker_45_39,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.gearselectiontool.lighting.CLIENT_X.com,Performance cookies,Signify (formerly CLIENT_X Lighting),JavaScript,_ga_failed_lookup_marker_45_41,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+pages.information.signify.com,Performance cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_45_42,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.th,Essential cookies,CLIENT_X - Thailand,HTTP Cookie,_ga_failed_lookup_marker_45_50,,session,TRUE,https://www.CLIENT_X.co.th/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.assets.lighting.CLIENT_X.com,Performance cookies,Signify (formerly CLIENT_X Lighting),ETag,_ga_failed_lookup_marker_45_56,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+youtube.com,Targeted Advertising cookies (including social media),Google Advertising Products,HTTP Cookie,_ga_failed_lookup_marker_45_84,,session,TRUE,https://www.CLIENT_X.co.th/c-e/products.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.co.th,Essential cookies,Signify (formerly CLIENT_X Lighting),ETag,_ga_failed_lookup_marker_45_87,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.th,Essential cookies,CLIENT_X - Thailand,HTTP Cookie,_ga_failed_lookup_marker_45_127,,400,TRUE,https://www.CLIENT_X.co.th/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+region1.google-analytics.com,Performance cookies,Google Inc.,Beacon,_ga_failed_lookup_marker_45_153,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.th,Essential cookies,CLIENT_X - Thailand,HTTP Cookie,_ga_failed_lookup_marker_45_161,,90,,https://www.CLIENT_X.co.th/,New First Party Trackers,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.co.th,Essential cookies,CLIENT_X - Thailand,HTTP Cookie,_ga_failed_lookup_marker_45_163,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+doubleclick.net,Targeted Advertising cookies (including social media),Google Advertising Products,HTTP Cookie,_ga_failed_lookup_marker_45_178,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+nebula-cdn.kampyle.com,Performance cookies,Medallia,JavaScript,_ga_failed_lookup_marker_45_188,,,TRUE,https://www.CLIENT_X.co.th/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.co.th,Essential cookies,Signify (formerly CLIENT_X Lighting),Local Storage,_ga_failed_lookup_marker_45_192,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied

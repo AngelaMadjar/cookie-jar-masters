@@ -1,0 +1,55 @@
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Python bytecode / cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Packaging / build ---
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# --- Test / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# --- Logs / runtime ---
+*.log
+*.pid
+*.out
+*.err
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Flask / local config ---
+.env
+.env.*
+instance/
+.flaskenv
+
+# --- Local artifacts ---
+tmp/
+.cache/

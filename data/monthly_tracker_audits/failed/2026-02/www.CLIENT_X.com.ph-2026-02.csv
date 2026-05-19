@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+lighting.CLIENT_X.com.ph,Essential cookies,CLIENT_X - Philippines,HTTP Cookie,_ga_failed_lookup_marker_62_1,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.google.com,Essential cookies,Google Inc.,HTTP Cookie,_ga_failed_lookup_marker_62_23,,180,TRUE,https://www.CLIENT_X.com.ph/c-w/support-home/support-contact-form.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.crsc.lighting.CLIENT_X.com,Performance cookies,Signify (formerly CLIENT_X Lighting),ETag,_ga_failed_lookup_marker_62_28,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+c.amazon-adsystem.com,Targeted Advertising cookies (including social media),Amazon Ads,ETag,_ga_failed_lookup_marker_62_29,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+region1.google-analytics.com,Performance cookies,Google Inc.,Beacon,_ga_failed_lookup_marker_62_46,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.ph,Essential cookies,CLIENT_X - Philippines,HTTP Cookie,_ga_failed_lookup_marker_62_47,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+pages.information.signify.com,Performance cookies,Signify (formerly CLIENT_X Lighting),JavaScript,_ga_failed_lookup_marker_62_55,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+images.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,ETag,_ga_failed_lookup_marker_62_69,,,TRUE,https://www.CLIENT_X.com.ph/c-p/HC3520_15/hairclipper-series-3000-hair-clipper,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.com,Performance cookies,Signify (formerly CLIENT_X Lighting),ETag,_ga_failed_lookup_marker_62_79,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.ph,Essential cookies,CLIENT_X - Philippines,HTTP Cookie,_ga_failed_lookup_marker_62_81,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.com.ph,Essential cookies,CLIENT_X - Philippines,HTTP Cookie,_ga_failed_lookup_marker_62_84,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.com.ph,Essential cookies,CLIENT_X - Philippines,HTTP Cookie,_ga_failed_lookup_marker_62_90,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.googleadservices.com,Targeted Advertising cookies (including social media),Google Advertising Products,ETag,_ga_failed_lookup_marker_62_95,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.com.ph,Essential cookies,CLIENT_X - Philippines,HTTP Cookie,_ga_failed_lookup_marker_62_108,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.realpro.lighting.CLIENT_X.com,Essential cookies,Koninklijke CLIENT_X N.V.,ETag,_ga_failed_lookup_marker_62_110,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.com.ph,Essential cookies,CLIENT_X - Philippines,HTTP Cookie,_ga_failed_lookup_marker_62_123,,365,TRUE,http://www.CLIENT_X.com.ph/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+eloqua.com,Essential cookies,Oracle Marketing,HTTP Cookie,_ga_failed_lookup_marker_62_159,,392,TRUE,https://www.CLIENT_X.com.ph/healthcare/about/distributors,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+tag.demandbase.com,Targeted Advertising cookies (including social media),"Demandbase, Inc.",JavaScript,_ga_failed_lookup_marker_62_160,,,TRUE,https://www.CLIENT_X.com.ph/a-w/cookie-notice,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+koninklijkeCLIENT_Xnvproduction2k8xfrmr.analytics.org.coveo.com,Performance cookies,Coveo Solutions Inc.,Beacon,_ga_failed_lookup_marker_62_170,,,,https://www.CLIENT_X.com.ph/a-w/about/news/home.html,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+beacon.speedcurve.com,Performance cookies,Speedcurve,Beacon,_ga_failed_lookup_marker_62_179,,,,https://www.CLIENT_X.com.ph/c-w/support-home/automotive.html,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied

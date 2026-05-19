@@ -1,0 +1,21 @@
+tracking_domain,consent_category,vendor_name,tracker_type,tracker_name,tracker_purpose,tracker_duration,3rd_party_sharing,first_found_at,party_type,vendor_description,modified,consent_category_new,tracker_purpose_[language code],vendor_description_[language code],error
+casalemedia.com,Targeted Advertising cookies (including social media),Index Exchange Inc.,HTTP Cookie,_ga_failed_lookup_marker_37_16,,365,TRUE,https://www.CLIENT_X.cl/a-w/about,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.tienda.CLIENT_X.cl,Performance cookies,CLIENT_X - Chile,HTTP Cookie,_ga_failed_lookup_marker_37_19,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.lighting.CLIENT_X.cl,Essential cookies,Signify (formerly CLIENT_X Lighting),HTTP Cookie,_ga_failed_lookup_marker_37_23,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+lighting.CLIENT_X.cl,Essential cookies,Signify (formerly CLIENT_X Lighting),Local Storage,_ga_failed_lookup_marker_37_26,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.cl,Performance cookies,CLIENT_X - Chile,HTTP Cookie,_ga_failed_lookup_marker_37_41,,0,TRUE,https://www.CLIENT_X.cl/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.cl,Essential cookies,CLIENT_X - Chile,HTTP Cookie,_ga_failed_lookup_marker_37_49,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+cdn.speedcurve.com,Performance cookies,Speedcurve,JavaScript,_ga_failed_lookup_marker_37_55,,,,https://www.CLIENT_X.cl/,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.cl,Essential cookies,CLIENT_X - Chile,HTTP Cookie,_ga_failed_lookup_marker_37_61,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+*.org.coveo.com,Performance cookies,Coveo Solutions Inc.,Beacon,_ga_failed_lookup_marker_37_72,,,,https://www.CLIENT_X.cl/a-w/about/news.html,New Third Party Trackers,,,,,,tracker_name_pattern_not_applied
+network-a.bazaarvoice.com,Targeted Advertising cookies (including social media),"Bazaarvoice, Inc.",Beacon,_ga_failed_lookup_marker_37_75,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.maxosfusionconfigurator.lighting.CLIENT_X.com,Performance cookies,Koninklijke CLIENT_X N.V.,ETag,_ga_failed_lookup_marker_37_84,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.lightset-creator.lighting.CLIENT_X.com,Targeted Advertising cookies (including social media),Signify (formerly CLIENT_X Lighting),JavaScript,_ga_failed_lookup_marker_37_101,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+sp.vtex.com,Performance cookies,VTEX,ETag,_ga_failed_lookup_marker_37_106,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.rendertool.lighting.CLIENT_X.com,Targeted Advertising cookies (including social media),Signify (formerly CLIENT_X Lighting),ETag,_ga_failed_lookup_marker_37_158,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+static.freshdev.io,Performance cookies,Freshworks,ETag,_ga_failed_lookup_marker_37_170,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+consent-pref.trustarc.com,Essential cookies,TrustArc,JavaScript,_ga_failed_lookup_marker_37_171,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+www.gearselectiontool.lighting.CLIENT_X.com,Performance cookies,Signify (formerly CLIENT_X Lighting),JavaScript,_ga_failed_lookup_marker_37_176,,,,,Existing CM Trackers-Not Found,,,,,,tracker_name_pattern_not_applied
+linkedin.com,Targeted Advertising cookies (including social media),LinkedIn,HTTP Cookie,_ga_failed_lookup_marker_37_186,,365,TRUE,https://www.CLIENT_X.cl/c-e/ho/homeid-app.html,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+CLIENT_X.112.2o7.net,Performance cookies,"Adobe Audience Manager, Adobe Experience Cloud",Beacon,_ga_failed_lookup_marker_37_187,,,TRUE,https://www.CLIENT_X.cl/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied
+www.CLIENT_X.cl,Essential cookies,CLIENT_X - Chile,HTTP Cookie,_ga_failed_lookup_marker_37_198,,1,TRUE,https://www.CLIENT_X.cl/,Existing CM Trackers-Found,,,,,,tracker_name_pattern_not_applied

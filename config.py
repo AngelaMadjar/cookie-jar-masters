@@ -10,7 +10,7 @@ class Config:
     
     db_user = os.getenv("DB_USER", "postgres")
     db_password = os.getenv("DB_PASSWORD", "")
-    db_name = os.getenv("DB_NAME", "cookie-jar-masters")
+    db_name = os.getenv("DB_NAME", "postgres")
     cloud_sql_connection_name = os.getenv(
         "CLOUD_SQL_CONNECTION_NAME",
         "dept-dinl-angela:europe-west1:cookie-jar-masters",

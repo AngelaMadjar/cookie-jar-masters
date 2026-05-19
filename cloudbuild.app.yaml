@@ -26,8 +26,35 @@ steps:
       - --add-cloudsql-instances=dept-dinl-angela:europe-west1:cookie-jar-masters
       - --concurrency=8
       - --max-instances=4
-      - --set-env-vars=FLASK_DEBUG=0,DB_USER=postgres,DB_NAME=cookie-jar-masters,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
+      - --set-env-vars=FLASK_DEBUG=0,DB_USER=postgres,DB_NAME=postgres,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
       - --set-secrets=DB_PASSWORD=cookie-jar-masters-db-password:latest
+
+  # A one-off Cloud Run job for running flask db upgrade to create schema in Cloud SQL. Easier that setting up cloud_sql_proxy locally, and this way it's reusable as well
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - cookie-jar-migrate-e2
+      - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-app:$COMMIT_SHA
+      - --region=europe-west1
+      - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
+      - --set-cloudsql-instances=dept-dinl-angela:europe-west1:cookie-jar-masters
+      - --set-env-vars=FLASK_DEBUG=0,DB_USER=postgres,DB_NAME=postgres,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
+      - --set-secrets=DB_PASSWORD=cookie-jar-masters-db-password:latest
+      - --command=flask
+      - --args=db,upgrade
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - execute
+      - cookie-jar-migrate-e2
+      - --region=europe-west1
+      - --wait
 
 options:
   logging: CLOUD_LOGGING_ONLY

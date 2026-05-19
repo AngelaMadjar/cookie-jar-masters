@@ -22,6 +22,7 @@ steps:
       - cookie-jar-locust-e2
       - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-locust:$COMMIT_SHA
       - --region=europe-west1
+      - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
       - --tasks=1
       - --max-retries=0
       # Optional in step 2: --service-account, --set-env-vars, --vpc-connector

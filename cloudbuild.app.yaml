@@ -27,3 +27,6 @@ steps:
       - --max-instances=4
       - --set-env-vars=FLASK_DEBUG=0
       # Optional: add --service-account, --set-cloudsql-instances, --vpc-connector in step 2
+
+options:
+  logging: CLOUD_LOGGING_ONLY

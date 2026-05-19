@@ -1,10 +1,8 @@
 from datetime import datetime, timezone
-from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
 from app.services.tracker_ingestion import TrackerIngestionOrchestrator
-from app.services.tracker_ingestion.scan_lifecycle_service import ScanLifecycleService
 
 bp = Blueprint("tracker_ingestion", __name__, url_prefix="/scan")
 
@@ -27,18 +25,19 @@ def ingest_file():
     if not month or not isinstance(month, str):
         return jsonify({"error": "bad request", "details": "month is required"}), 400
 
-    source_path = Path(file_path)
-    if not source_path.exists() or not source_path.is_file():
-        return jsonify({"error": "bad request", "details": f"file not found: {file_path}"}), 400
-    expected_input_dir = ScanLifecycleService.month_input_dir(month).resolve()
-    try:
-        source_resolved = source_path.resolve()
-        source_resolved.relative_to(expected_input_dir)
-    except Exception:
+    # E2 adjustment: local filesystem validation was replaced with strict GCS path validation.
+    if not file_path.startswith("gs://"):
         return jsonify(
             {
                 "error": "bad request",
-                "details": f"file_path must be under {expected_input_dir}",
+                "details": "file_path must be a gs:// URI",
+            }
+        ), 400
+    if not file_path.startswith("gs://e2-data/"):
+        return jsonify(
+            {
+                "error": "bad request",
+                "details": "file_path must be under gs://e2-data/",
             }
         ), 400
 

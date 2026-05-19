@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from pathlib import Path
 from threading import BoundedSemaphore, Lock
 from time import perf_counter
 
@@ -25,9 +24,8 @@ class TrackerIngestionOrchestrator:
         return datetime.now(timezone.utc)
 
     @staticmethod
-    def ingest_file(file_path: str | Path):
-        source_path = Path(file_path)
-        ingestion = IngestionService.load_and_validate(source_path)
+    def ingest_file(file_path: str):
+        ingestion = IngestionService.load_and_validate(file_path)
 
         refs = ReferenceDataService.build_reference_maps(
             ingestion.good_df,
@@ -54,7 +52,7 @@ class TrackerIngestionOrchestrator:
         )
 
         return {
-            "file_path": str(source_path),
+            "file_path": file_path,
             "processed_df": processed_df,
             "failed_df": failed_df,
             "summary": ReportingService.summarize(
@@ -69,7 +67,7 @@ class TrackerIngestionOrchestrator:
 
     @staticmethod
     def ingest_single_file(
-        file_path: str | Path,
+        file_path: str,
         test_case: str,
         run_id: str,
         month: str = "2026-02",
@@ -90,11 +88,10 @@ class TrackerIngestionOrchestrator:
 
             processing_start = TrackerIngestionOrchestrator._now_utc()
 
-            source_file = Path(file_path)
-            result = TrackerIngestionOrchestrator.ingest_file(source_file)
+            result = TrackerIngestionOrchestrator.ingest_file(file_path)
             ScanLifecycleService.persist_results(
                 month=month,
-                source_file=source_file,
+                source_file_gs_uri=file_path,
                 processed_df=result["processed_df"],
                 failed_df=result["failed_df"],
             )

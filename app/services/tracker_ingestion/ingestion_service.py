@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import pandas as pd
 
+from app.services.tracker_ingestion.scan_lifecycle_service import ScanLifecycleService
 from app.services.tracker_ingestion.validation_service import ValidationService
 
 
 @dataclass
 class IngestionResult:
-    file_path: Path
+    file_path: str
     source_name: str
     cmp_name: str
     good_df: pd.DataFrame
@@ -44,20 +44,10 @@ class IngestionService:
     ]
 
     @staticmethod
-    def _extract_cmp_name(file_path: Path) -> str:
-        # Local fallback convention: derive CMP from filename prefix before first dash.
-        stem = file_path.stem
+    def _extract_cmp_name(file_path: str) -> str:
+        # E2 adjustment: CMP is derived from GCS object filename in the same way as local filenames.
+        stem = file_path.rsplit("/", 1)[-1].rsplit(".", 1)[0]
         return stem.split("-")[0].strip() or "unknown_cmp"
-
-    @staticmethod
-    def _read_csv(path: Path) -> pd.DataFrame:
-        last_exc = None
-        for encoding in ("utf-8-sig", "latin-1"):
-            try:
-                return pd.read_csv(path, sep=",", dtype=str, encoding=encoding, keep_default_na=False)
-            except Exception as exc:  # pragma: no cover - fallback path
-                last_exc = exc
-        raise last_exc
 
     @staticmethod
     def _normalize(df: pd.DataFrame) -> pd.DataFrame:
@@ -74,11 +64,12 @@ class IngestionService:
         return df
 
     @staticmethod
-    def load_and_validate(file_path: Path) -> IngestionResult:
-        source_name = file_path.name
+    def load_and_validate(file_path: str) -> IngestionResult:
+        source_name = file_path.rsplit("/", 1)[-1]
         cmp_name = IngestionService._extract_cmp_name(file_path)
 
-        raw_df = IngestionService._read_csv(file_path)
+        # E2 adjustment: scans are loaded from GCS instead of local filesystem.
+        raw_df = ScanLifecycleService.read_csv_from_gcs(file_path)
         normalized_df = IngestionService._normalize(raw_df)
 
         good_df, bad_df = ValidationService.split_by_tracker_name_pattern(normalized_df)

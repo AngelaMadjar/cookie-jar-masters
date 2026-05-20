@@ -25,8 +25,8 @@ steps:
       - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
       - --add-cloudsql-instances=dept-dinl-angela:europe-west1:cookie-jar-masters
       - --concurrency=8
-      - --min-instances=0
-      - --max-instances=10
+      - --min-instances=1
+      - --max-instances=12
       - --cpu=1
       - --memory=3Gi
       - --timeout=3600

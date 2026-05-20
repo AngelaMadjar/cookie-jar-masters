@@ -8,6 +8,7 @@ import os
 import shlex
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
@@ -50,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--spawn-rate", type=int, default=80)
     p.add_argument("--total-requests", type=int, default=80)
     p.add_argument("--ui", action="store_true", help="Run locust in web UI mode with autostart/autoquit.")
+    p.add_argument("--repeat-delay-sec", type=int, default=300, help="Delay between repeats to reduce cross-run interference.")
     p.add_argument("--results-dir", default="", help="Optional override for results root. If unset, writes under each case folder.")
     p.add_argument("--locust-bin", default="python3 -m locust")
     return p
@@ -401,6 +403,8 @@ def main():
         raise ValueError("--total-requests must be > 0")
     if args.repeats <= 0:
         raise ValueError("--repeats must be > 0")
+    if args.repeat_delay_sec < 0:
+        raise ValueError("--repeat-delay-sec must be >= 0")
 
     for case in test_cases:
         case_dir = case_results_dir(case, args.results_dir)
@@ -442,6 +446,10 @@ def main():
             )
             print(f"  Raw JSON (local temp): {raw_json_path}")
             print(f"  Raw JSON (GCS): {case_dir}/raw/{run_id}.json")
+            if repeat_index < args.repeats and args.repeat_delay_sec > 0:
+                # E2 reliability control: cooldown between repeats reduces overlap from long-running prior requests.
+                print(f"  Cooldown before next repeat: sleeping {args.repeat_delay_sec}s")
+                time.sleep(args.repeat_delay_sec)
 
         write_case_summary(case_dir)
         print(f"Completed case {case}. Results: {case_dir}")

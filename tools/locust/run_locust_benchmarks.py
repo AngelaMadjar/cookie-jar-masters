@@ -112,6 +112,18 @@ def delete_prefix_gs(bucket_name: str, prefix: str) -> int:
     return deleted
 
 
+def list_gs_uris(prefix_gs_uri: str) -> list[str]:
+    # E2 GCS adaptation: list per-run aggregate artifacts stored in GCS prefixes.
+    bucket_name, prefix = parse_gs_uri(prefix_gs_uri)
+    bucket = storage_client().bucket(bucket_name)
+    uris: list[str] = []
+    for blob in storage_client().list_blobs(bucket, prefix=prefix):
+        if blob.name.endswith("/"):
+            continue
+        uris.append(f"gs://{bucket_name}/{blob.name}")
+    return sorted(uris)
+
+
 def _post_ok(host: str, endpoint: str, payload: dict):
     print(f"  -> POST {endpoint}")
     resp = requests.post(
@@ -296,33 +308,53 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, repe
 def write_case_outputs(case_dir: str, run_row: dict, records_payload: dict):
     # E2 GCS adaptation: benchmark outputs are written to GCS instead of local benchmark folders.
     run_id = run_row["run_id"]
+    repeat_index = int(run_row["repeat_index"])
     raw_path = f"{case_dir}/raw/{run_id}.json"
     upload_text_gs(raw_path, json.dumps(records_payload, indent=2), content_type="application/json")
 
-    runs_csv = f"{case_dir}/aggregated/runs.csv"
+    # E2 GCS adaptation: each run now persists a deterministic per-repeat aggregate row file.
+    run_csv_path = f"{case_dir}/aggregated/runs/run_{repeat_index}.csv"
     fields = list(run_row.keys())
-    rows: list[dict] = []
-    try:
-        existing_csv = download_text_gs(runs_csv)
-        rows = list(csv.DictReader(StringIO(existing_csv)))
-    except Exception:
-        rows = []
-    rows.append(run_row)
-
     out = StringIO()
     writer = csv.DictWriter(out, fieldnames=fields)
     writer.writeheader()
-    writer.writerows(rows)
-    upload_text_gs(runs_csv, out.getvalue(), content_type="text/csv")
+    writer.writerow(run_row)
+    upload_text_gs(run_csv_path, out.getvalue(), content_type="text/csv")
 
 
 def write_case_summary(case_dir: str):
-    # E2 GCS adaptation: summary aggregation is loaded/saved via GCS CSV objects.
-    runs_csv = f"{case_dir}/aggregated/runs.csv"
-    try:
-        rows = list(csv.DictReader(StringIO(download_text_gs(runs_csv))))
-    except Exception:
-        rows = []
+    # E2 GCS adaptation: consolidate all immutable per-run aggregate files into runs.csv + summary.csv.
+    run_rows: list[dict] = []
+    runs_prefix = f"{case_dir}/aggregated/runs/"
+    for run_csv_uri in list_gs_uris(runs_prefix):
+        if not run_csv_uri.endswith(".csv"):
+            continue
+        try:
+            rows = list(csv.DictReader(StringIO(download_text_gs(run_csv_uri))))
+        except Exception:
+            rows = []
+        if rows:
+            run_rows.extend(rows)
+
+    # E2 GCS adaptation: fallback kept for backwards compatibility with older runs.csv-only outputs.
+    if not run_rows:
+        runs_csv = f"{case_dir}/aggregated/runs.csv"
+        try:
+            run_rows = list(csv.DictReader(StringIO(download_text_gs(runs_csv))))
+        except Exception:
+            run_rows = []
+
+    if run_rows:
+        run_rows.sort(key=lambda r: int(r.get("repeat_index", 0) or 0))
+        runs_csv = f"{case_dir}/aggregated/runs.csv"
+        out_runs = StringIO()
+        runs_fields = list(run_rows[0].keys())
+        runs_writer = csv.DictWriter(out_runs, fieldnames=runs_fields)
+        runs_writer.writeheader()
+        runs_writer.writerows(run_rows)
+        upload_text_gs(runs_csv, out_runs.getvalue(), content_type="text/csv")
+
+    rows = run_rows
     if not rows:
         return
     numeric_keys = [

@@ -25,6 +25,7 @@ steps:
       - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
       - --tasks=1
       - --max-retries=0
+      - --task-timeout=3600s
       - --command=python3
       - --args=tools/locust/run_locust_benchmarks.py
       - --set-env-vars=PYTHONUNBUFFERED=1

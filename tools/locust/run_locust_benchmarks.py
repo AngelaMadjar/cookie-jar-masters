@@ -20,7 +20,7 @@ from google.cloud import storage
 # Example command to run the Locust Cloud Run job
 #  gcloud run jobs execute cookie-jar-locust-e2 \
 #  --region=europe-west1 \
-#  --args="tools/locust/run_locust_benchmarks.py,--host,https://cookie-jar-app-e2-656924888958.europe-west1.run.app,--test-cases,T1"
+#  --args="tools/locust/run_locust_benchmarks.py,--host,https://cookie-jar-app-e2-656924888958.europe-west1.run.app,--test-cases,T1 --repeats,3"
 
 CASE_TO_FOLDER = {
     "T1": "T1_original",

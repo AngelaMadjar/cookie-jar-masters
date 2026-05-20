@@ -322,6 +322,7 @@ def write_case_outputs(case_dir: str, run_row: dict, records_payload: dict):
     upload_text_gs(run_csv_path, out.getvalue(), content_type="text/csv")
 
 
+
 def write_case_summary(case_dir: str):
     # E2 GCS adaptation: consolidate all immutable per-run aggregate files into runs.csv + summary.csv.
     run_rows: list[dict] = []

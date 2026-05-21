@@ -222,7 +222,8 @@ def stage_files(test_case_id: str, test_case_folder: str, run_id: str, month: st
     src_bucket = storage_client().bucket(SOURCE_BENCHMARK_BUCKET)
     for src_blob in selected:
         filename = src_blob.name.rsplit("/", 1)[-1]
-        dst_blob_name = f"{test_case_folder}/input/{filename}"
+        # E3 adaptation: encode run id in the trigger object path so event ingestion can recover a stable run grouping without relying on metadata timing.
+        dst_blob_name = f"{test_case_folder}/input/{run_id}/{filename}"
         copied = src_bucket.copy_blob(src_blob, dst_bucket, new_name=dst_blob_name)
         # E3 adaptation: attach both id and folder metadata so event handler writes raw artifacts to correct folder.
         copied.metadata = {
@@ -234,7 +235,7 @@ def stage_files(test_case_id: str, test_case_folder: str, run_id: str, month: st
         copied.patch()
         staged.append(f"gs://{TRIGGER_BUCKET}/{dst_blob_name}")
 
-    print(f"  Copied {len(staged)} files into gs://{TRIGGER_BUCKET}/{test_case_folder}/input/")
+    print(f"  Copied {len(staged)} files into gs://{TRIGGER_BUCKET}/{test_case_folder}/input/{run_id}/")
     return staged
 
 
@@ -249,7 +250,7 @@ def wait_until_complete(
     print("Step 4/6: Wait for event-driven processing completion")
     start = time.time()
     raw_prefix = f"results/{test_case_folder}/raw/{run_id}/"
-    trigger_prefix = f"{test_case_folder}/input/"
+    trigger_prefix = f"{test_case_folder}/input/{run_id}/"
     while True:
         input_remaining = count_blobs(TRIGGER_BUCKET, trigger_prefix)
         raw_records_count = count_blobs(RESULTS_BUCKET, raw_prefix)
@@ -258,7 +259,8 @@ def wait_until_complete(
             f"  elapsed={elapsed}s input_remaining={input_remaining} raw_records={raw_records_count}/{staged_count}"
         )
 
-        if input_remaining == 0 and raw_records_count >= staged_count:
+        # E3 adaptation: input files are intentionally retained in trigger bucket; completion is defined by observed raw records.
+        if raw_records_count >= staged_count:
             return
 
         if elapsed >= timeout_sec:

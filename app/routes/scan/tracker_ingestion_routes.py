@@ -24,6 +24,7 @@ CASE_FOLDER_BY_ID = {
     "T6": "T6_skewed_existing_heavy",
     "T7": "T7_skewed_new_heavy",
 }
+CASE_ID_BY_FOLDER = {folder: case_id for case_id, folder in CASE_FOLDER_BY_ID.items()}
 
 
 
@@ -74,6 +75,16 @@ def _event_payload_to_file_path(payload: dict) -> tuple[str | None, str | None, 
     return f"gs://{bucket}/{object_name}", object_name, metadata
 
 
+def _event_case_folder_and_run_id(object_name: str) -> tuple[str | None, str | None]:
+    # E3 adaptation: infer test-case folder and run id directly from object path to avoid metadata timing races.
+    parts = PurePosixPath(object_name).parts
+    if len(parts) >= 3 and parts[1] == "input":
+        case_folder = parts[0]
+        run_id = parts[2] if len(parts) >= 4 else None
+        return case_folder, run_id
+    return None, None
+
+
 def _normalize_ingest_payload(payload: dict) -> tuple[dict | None, bool, dict | None, int | None]:
     # E3 adaptation: allow the canonical /scan/ingest endpoint to accept both HTTP benchmark payloads and GCS finalize events.
     file_path = payload.get("file_path")
@@ -98,11 +109,23 @@ def _normalize_ingest_payload(payload: dict) -> tuple[dict | None, bool, dict | 
     # E3 adaptation: process only benchmark input object finalizations to avoid loops from results/processed/failed writes.
     if "/input/" not in object_name:
         return None, True, {"status": "ignored", "file_path": file_path}, 200
+    # E3 adaptation: ignore non-csv objects (for example marker files) on the event path.
+    if not object_name.lower().endswith(".csv"):
+        return None, True, {"status": "ignored", "file_path": file_path}, 200
 
+    case_folder_from_path, run_id_from_path = _event_case_folder_and_run_id(object_name)
     month = str(metadata.get("month") or _infer_month_from_object_name(object_name) or DEFAULT_MONTH)
-    test_case = str(metadata.get("test_case") or "unknown")
-    test_case_folder = str(metadata.get("test_case_folder") or _benchmark_case_folder(test_case))
-    run_id = str(metadata.get("run_id") or f"run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}")
+    test_case_folder = str(
+        metadata.get("test_case_folder")
+        or case_folder_from_path
+        or _benchmark_case_folder(str(metadata.get("test_case") or "unknown"))
+    )
+    test_case = str(metadata.get("test_case") or CASE_ID_BY_FOLDER.get(test_case_folder, "unknown"))
+    run_id = str(
+        metadata.get("run_id")
+        or run_id_from_path
+        or f"run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    )
     return (
         {
             "file_path": file_path,

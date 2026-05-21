@@ -4,7 +4,6 @@ from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
-from google.api_core.exceptions import NotFound
 from google.cloud import storage
 
 
@@ -115,8 +114,4 @@ class ScanLifecycleService:
                 content_type="text/csv",
             )
 
-        try:
-            ScanLifecycleService.storage_client().bucket(bucket_name).blob(source_blob_name).delete()
-        except NotFound:
-            # E3 adaptation: event retries can race after source delete, so missing object is treated as benign.
-            pass
+        # E3 adaptation: keep staged benchmark inputs in e3-data-benchmarks/input so they persist until the next upload-job cleanup.

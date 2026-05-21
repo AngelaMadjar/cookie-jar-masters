@@ -80,7 +80,7 @@ def _event_case_folder_and_run_id(object_name: str) -> tuple[str | None, str | N
     parts = PurePosixPath(object_name).parts
     if len(parts) >= 3 and parts[1] == "input":
         case_folder = parts[0]
-        run_id = parts[2] if len(parts) >= 4 else None
+        run_id = parts[2] if len(parts) >= 4 and str(parts[2]).startswith("run_") else None
         return case_folder, run_id
     return None, None
 

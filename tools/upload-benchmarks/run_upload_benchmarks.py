@@ -21,7 +21,13 @@ except Exception:  # pragma: no cover
     monitoring_v3 = None
 
 RUNTIME_BUCKET = "e3-data-monthly-audit-trackers"
-BENCHMARK_BUCKET = "e3-data-benchmarks"
+# E3 adaptation: benchmark source-of-truth remains in e2-data/benchmarks/<test_case_folder>/.
+SOURCE_BENCHMARK_BUCKET = "e2-data"
+SOURCE_BENCHMARK_ROOT_PREFIX = "benchmarks"
+# E3 adaptation: uploads into this bucket/prefix are the event source for E3 ingestion.
+TRIGGER_BUCKET = "e3-data-benchmarks"
+# E3 adaptation: run artifacts are written under e3 runtime bucket results/<test_case_folder>/.
+RESULTS_BUCKET = "e3-data-monthly-audit-trackers"
 DEFAULT_MONTH = "2026-02"
 CLOUD_RUN_SERVICE_NAME = os.getenv("CLOUD_RUN_SERVICE_NAME", "cookie-jar-app-e3")
 CLOUD_RUN_REGION = os.getenv("CLOUD_RUN_REGION", "europe-west1")
@@ -192,33 +198,31 @@ def clear_runtime_prefixes(month: str):
         print(f"  Cleared {deleted} objects from gs://{RUNTIME_BUCKET}/{prefix}")
 
 
-def load_manifest_paths(test_case_folder: str) -> list[str]:
-    manifest_uri = f"gs://{BENCHMARK_BUCKET}/{test_case_folder}/manifest/manifest.json"
-    payload = json.loads(download_text_gs(manifest_uri))
-    paths = payload.get("generated_file_paths") or []
-    if not paths:
-        raise ValueError(f"No generated_file_paths found in {manifest_uri}")
-    return [str(x) for x in paths]
+def clear_trigger_input_prefix(test_case_folder: str):
+    # E3 adaptation: remove prior staged files so one upload job execution represents one clean benchmark run.
+    trigger_prefix = f"{test_case_folder}/input/"
+    deleted = delete_prefix(TRIGGER_BUCKET, trigger_prefix)
+    print(f"  Cleared {deleted} objects from gs://{TRIGGER_BUCKET}/{trigger_prefix}")
 
 
 def stage_files(test_case_id: str, test_case_folder: str, run_id: str, month: str, total_files: int) -> list[str]:
-    print("Step 3/6: Copy test-case inputs into runtime input prefix")
-    manifest_paths = load_manifest_paths(test_case_folder)
-    if len(manifest_paths) < total_files:
-        raise ValueError(f"Manifest contains only {len(manifest_paths)} files, expected at least {total_files}")
+    print("Step 3/6: Copy test-case inputs from e2 benchmark bucket to e3 trigger bucket")
+    source_prefix = f"{SOURCE_BENCHMARK_ROOT_PREFIX}/{test_case_folder}/input/"
+    source_blobs = [b for b in list_blobs(SOURCE_BENCHMARK_BUCKET, source_prefix) if b.name.endswith(".csv")]
+    source_blobs.sort(key=lambda b: b.name)
+    if len(source_blobs) < total_files:
+        raise ValueError(
+            f"Source input contains only {len(source_blobs)} csv files under gs://{SOURCE_BENCHMARK_BUCKET}/{source_prefix}, "
+            f"expected at least {total_files}"
+        )
 
-    selected = manifest_paths[:total_files]
-    dst_bucket = storage_client().bucket(RUNTIME_BUCKET)
+    selected = source_blobs[:total_files]
+    dst_bucket = storage_client().bucket(TRIGGER_BUCKET)
     staged = []
-    for src_uri in selected:
-        src_bucket_name, src_blob_name = parse_gs_uri(src_uri)
-        src_bucket = storage_client().bucket(src_bucket_name)
-        src_blob = src_bucket.blob(src_blob_name)
-        if not src_blob.exists():
-            raise FileNotFoundError(f"Source file missing: {src_uri}")
-
-        filename = src_blob_name.rsplit("/", 1)[-1]
-        dst_blob_name = f"input/{month}/{filename}"
+    src_bucket = storage_client().bucket(SOURCE_BENCHMARK_BUCKET)
+    for src_blob in selected:
+        filename = src_blob.name.rsplit("/", 1)[-1]
+        dst_blob_name = f"{test_case_folder}/input/{filename}"
         copied = src_bucket.copy_blob(src_blob, dst_bucket, new_name=dst_blob_name)
         # E3 adaptation: attach both id and folder metadata so event handler writes raw artifacts to correct folder.
         copied.metadata = {
@@ -228,9 +232,9 @@ def stage_files(test_case_id: str, test_case_folder: str, run_id: str, month: st
             "month": month,
         }
         copied.patch()
-        staged.append(f"gs://{RUNTIME_BUCKET}/{dst_blob_name}")
+        staged.append(f"gs://{TRIGGER_BUCKET}/{dst_blob_name}")
 
-    print(f"  Copied {len(staged)} files into gs://{RUNTIME_BUCKET}/input/{month}/")
+    print(f"  Copied {len(staged)} files into gs://{TRIGGER_BUCKET}/{test_case_folder}/input/")
     return staged
 
 
@@ -244,10 +248,11 @@ def wait_until_complete(
 ):
     print("Step 4/6: Wait for event-driven processing completion")
     start = time.time()
-    raw_prefix = f"{test_case_folder}/results/raw/{run_id}/"
+    raw_prefix = f"results/{test_case_folder}/raw/{run_id}/"
+    trigger_prefix = f"{test_case_folder}/input/"
     while True:
-        input_remaining = count_blobs(RUNTIME_BUCKET, f"input/{month}/")
-        raw_records_count = count_blobs(BENCHMARK_BUCKET, raw_prefix)
+        input_remaining = count_blobs(TRIGGER_BUCKET, trigger_prefix)
+        raw_records_count = count_blobs(RESULTS_BUCKET, raw_prefix)
         elapsed = int(time.time() - start)
         print(
             f"  elapsed={elapsed}s input_remaining={input_remaining} raw_records={raw_records_count}/{staged_count}"
@@ -265,9 +270,9 @@ def wait_until_complete(
 
 
 def read_run_records(test_case_folder: str, run_id: str) -> list[dict]:
-    prefix = f"{test_case_folder}/results/raw/{run_id}/"
+    prefix = f"results/{test_case_folder}/raw/{run_id}/"
     records = []
-    for blob in list_blobs(BENCHMARK_BUCKET, prefix):
+    for blob in list_blobs(RESULTS_BUCKET, prefix):
         payload = json.loads(blob.download_as_text())
         records.append(payload)
     return records
@@ -388,7 +393,7 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -
 
 def write_outputs(test_case_folder: str, run_id: str, month: str, records: list[dict], run_row: dict):
     print("Step 5/6: Write run artifacts")
-    raw_bundle_uri = f"gs://{BENCHMARK_BUCKET}/{test_case_folder}/results/raw/{run_id}.json"
+    raw_bundle_uri = f"gs://{RESULTS_BUCKET}/results/{test_case_folder}/raw/{run_id}.json"
     upload_text_gs(
         raw_bundle_uri,
         json.dumps(
@@ -404,7 +409,7 @@ def write_outputs(test_case_folder: str, run_id: str, month: str, records: list[
         content_type="application/json",
     )
 
-    csv_uri = f"gs://{BENCHMARK_BUCKET}/{test_case_folder}/results/aggregated/{run_id}.csv"
+    csv_uri = f"gs://{RESULTS_BUCKET}/results/{test_case_folder}/aggregated/{run_id}.csv"
     fields = list(run_row.keys())
     out = StringIO()
     writer = csv.DictWriter(out, fieldnames=fields)
@@ -429,6 +434,7 @@ def main():
 
     reset_and_seed_db(args.host)
     clear_runtime_prefixes(args.month)
+    clear_trigger_input_prefix(test_case_folder)
     staged_files = stage_files(test_case_id, test_case_folder, run_id, args.month, args.total_files)
     wait_until_complete(
         test_case_folder=test_case_folder,
@@ -448,4 +454,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

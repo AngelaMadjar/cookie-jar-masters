@@ -10,9 +10,9 @@ from app.services.tracker_ingestion.scan_lifecycle_service import ScanLifecycleS
 
 bp = Blueprint("tracker_ingestion", __name__, url_prefix="/scan")
 
-# E3 adaptation: enforce dedicated runtime/benchmark buckets and fixed benchmark month.
+# E3 adaptation: use the monthly-audit bucket as runtime and results storage for E3 runs.
 E3_RUNTIME_BUCKET = "e3-data-monthly-audit-trackers"
-E3_BENCHMARK_BUCKET = "e3-data-benchmarks"
+E3_RESULTS_BUCKET = "e3-data-monthly-audit-trackers"
 DEFAULT_MONTH = "2026-02"
 # E3 adaptation: benchmark bucket uses descriptive case-folder names instead of short ids.
 CASE_FOLDER_BY_ID = {
@@ -44,17 +44,17 @@ def _benchmark_case_folder(test_case: str, test_case_folder: str | None = None) 
 
 def _safe_record_blob_name(test_case_folder: str, run_id: str, file_path: str) -> str:
     filename = file_path.rsplit("/", 1)[-1]
-    return f"{test_case_folder}/results/raw/{run_id}/{filename}.json"
+    return f"results/{test_case_folder}/raw/{run_id}/{filename}.json"
 
 
 def _write_raw_record(test_case: str, run_id: str, file_path: str, record: dict, test_case_folder: str | None = None):
-    # E3 adaptation: persist per-file processing records in benchmark bucket for run-level aggregation.
+    # E3 adaptation: persist per-file processing records under runtime bucket results/<test_case>/raw/.
     blob_name = _safe_record_blob_name(
         test_case_folder=_benchmark_case_folder(test_case, test_case_folder),
         run_id=run_id,
         file_path=file_path,
     )
-    bucket = ScanLifecycleService.storage_client().bucket(E3_BENCHMARK_BUCKET)
+    bucket = ScanLifecycleService.storage_client().bucket(E3_RESULTS_BUCKET)
     bucket.blob(blob_name).upload_from_string(
         json.dumps(record),
         content_type="application/json",
@@ -145,6 +145,9 @@ def on_storage_finalized():
         return jsonify({"error": "bad request", "details": "missing storage event bucket/name"}), 400
 
     month = str(metadata.get("month") or _infer_month_from_object_name(object_name) or DEFAULT_MONTH)
+    # E3 adaptation: process only benchmark input object finalizations to avoid loops from results/processed/failed writes.
+    if "/input/" not in object_name:
+        return jsonify({"status": "ignored", "file_path": file_path}), 200
     test_case = str(metadata.get("test_case") or "unknown")
     # E3 adaptation: event metadata can carry benchmark folder name so raw results map to T*_descriptive folders.
     test_case_folder = str(metadata.get("test_case_folder") or _benchmark_case_folder(test_case))

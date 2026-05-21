@@ -12,6 +12,7 @@ class ScanLifecycleService:
     BASE_DIR = Path("data/monthly_tracker_audits")
     BENCHMARKS_DIR = Path("data/benchmarks")
     _storage_client: storage.Client | None = None
+    RUNTIME_RESULTS_BUCKET = "e3-data-monthly-audit-trackers"
 
     @staticmethod
     def storage_client() -> storage.Client:
@@ -94,25 +95,28 @@ class ScanLifecycleService:
 
     @staticmethod
     def persist_results(month: str, source_file_gs_uri: str, processed_df: pd.DataFrame, failed_df: pd.DataFrame):
-        # E3 adaptation: runtime bucket layout uses input/processed/failed at root-level prefixes.
+        # E3 adaptation: source files can originate from benchmark trigger bucket, but processed/failed outputs live in runtime bucket.
         bucket_name, source_blob_name = ScanLifecycleService.parse_gs_uri(source_file_gs_uri)
         filename = source_blob_name.rsplit("/", 1)[-1]
-        source_prefix = f"input/{month}/"
-        if not source_blob_name.startswith(source_prefix):
-            raise ValueError(f"Expected input object under {source_prefix}, got: {source_file_gs_uri}")
 
         processed_blob_name = f"processed/{month}/{filename}"
         failed_blob_name = f"failed/{month}/{filename}"
 
-        bucket = ScanLifecycleService.storage_client().bucket(bucket_name)
+        results_bucket = ScanLifecycleService.storage_client().bucket(ScanLifecycleService.RUNTIME_RESULTS_BUCKET)
         if not processed_df.empty:
-            bucket.blob(processed_blob_name).upload_from_string(processed_df.to_csv(index=False), content_type="text/csv")
+            results_bucket.blob(processed_blob_name).upload_from_string(
+                processed_df.to_csv(index=False),
+                content_type="text/csv",
+            )
 
         if not failed_df.empty:
-            bucket.blob(failed_blob_name).upload_from_string(failed_df.to_csv(index=False), content_type="text/csv")
+            results_bucket.blob(failed_blob_name).upload_from_string(
+                failed_df.to_csv(index=False),
+                content_type="text/csv",
+            )
 
         try:
-            bucket.blob(source_blob_name).delete()
+            ScanLifecycleService.storage_client().bucket(bucket_name).blob(source_blob_name).delete()
         except NotFound:
             # E3 adaptation: event retries can race after source delete, so missing object is treated as benign.
             pass

@@ -34,39 +34,12 @@ steps:
       - --set-env-vars=FLASK_DEBUG=0,DB_USER=postgres,DB_NAME=postgres,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
       - --set-secrets=DB_PASSWORD=cookie-jar-masters-db-password:latest
 
-  # E3 adaptation: keep DB migration behavior aligned with E2 by reusing the existing migrate job.
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    entrypoint: gcloud
-    args:
-      - run
-      - jobs
-      - deploy
-      - cookie-jar-migrate-e2
-      - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-app:$COMMIT_SHA
-      - --region=europe-west1
-      - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
-      - --set-cloudsql-instances=dept-dinl-angela:europe-west1:cookie-jar-masters
-      - --set-env-vars=FLASK_DEBUG=0,FLASK_APP=run.py,DB_USER=postgres,DB_NAME=postgres,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
-      - --set-secrets=DB_PASSWORD=cookie-jar-masters-db-password:latest
-      - --command=python3
-      - --args=-m,flask,db,upgrade
-
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-    entrypoint: gcloud
-    args:
-      - run
-      - jobs
-      - execute
-      - cookie-jar-migrate-e2
-      - --region=europe-west1
-      - --wait
-
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - -c
       - |
-        # E3 adaptation: create an Eventarc trigger so GCS finalize events invoke /scan/events/storage-finalized.
+        # E3 adaptation: create an Eventarc trigger so e3 benchmark uploads invoke /scan/events/storage-finalized.
         # E3 adaptation: escape shell vars with $$ so Cloud Build doesn't treat them as template substitutions.
         set -euo pipefail
         TRIGGER_NAME="cookie-jar-app-e3-storage-finalized"
@@ -81,7 +54,7 @@ steps:
           --destination-run-region="$$REGION" \
           --destination-run-path=/scan/events/storage-finalized \
           --event-filters=type=google.cloud.storage.object.v1.finalized \
-          --event-filters=bucket=e3-data-monthly-audit-trackers \
+          --event-filters=bucket=e3-data-benchmarks \
           --service-account="$$SA"
 
 options:

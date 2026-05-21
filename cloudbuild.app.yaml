@@ -67,21 +67,22 @@ steps:
       - -c
       - |
         # E3 adaptation: create an Eventarc trigger so GCS finalize events invoke /scan/events/storage-finalized.
+        # E3 adaptation: escape shell vars with $$ so Cloud Build doesn't treat them as template substitutions.
         set -euo pipefail
         TRIGGER_NAME="cookie-jar-app-e3-storage-finalized"
         REGION="europe-west1"
         SA="angela-masters@dept-dinl-angela.iam.gserviceaccount.com"
-        if gcloud eventarc triggers describe "$TRIGGER_NAME" --location="$REGION" >/dev/null 2>&1; then
-          gcloud eventarc triggers delete "$TRIGGER_NAME" --location="$REGION" --quiet
+        if gcloud eventarc triggers describe "$$TRIGGER_NAME" --location="$$REGION" >/dev/null 2>&1; then
+          gcloud eventarc triggers delete "$$TRIGGER_NAME" --location="$$REGION" --quiet
         fi
-        gcloud eventarc triggers create "$TRIGGER_NAME" \
-          --location="$REGION" \
+        gcloud eventarc triggers create "$$TRIGGER_NAME" \
+          --location="$$REGION" \
           --destination-run-service=cookie-jar-app-e3 \
-          --destination-run-region="$REGION" \
+          --destination-run-region="$$REGION" \
           --destination-run-path=/scan/events/storage-finalized \
           --event-filters=type=google.cloud.storage.object.v1.finalized \
           --event-filters=bucket=e3-data-monthly-audit-trackers \
-          --service-account="$SA"
+          --service-account="$$SA"
 
 options:
   logging: CLOUD_LOGGING_ONLY

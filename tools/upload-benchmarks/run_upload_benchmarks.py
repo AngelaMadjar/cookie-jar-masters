@@ -12,6 +12,7 @@ from statistics import median
 from urllib.parse import quote
 
 import requests
+from google.api_core.exceptions import NotFound
 from google.cloud import storage
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -46,6 +47,8 @@ CASE_ID_BY_FOLDER = {folder: case_id for case_id, folder in CASE_FOLDER_BY_ID.it
 _STORAGE_CLIENT: storage.Client | None = None
 _MONITORING_CLIENT = None
 _ID_TOKEN_CACHE: dict[str, str] = {}
+READ_RETRY_ATTEMPTS = 6
+READ_RETRY_SLEEP_SEC = 2
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -251,6 +254,7 @@ def wait_until_complete(
     start = time.time()
     raw_prefix = f"results/{test_case_folder}/raw/{run_id}/"
     trigger_prefix = f"{test_case_folder}/input/{run_id}/"
+    completion_confirmations = 0
     while True:
         input_remaining = count_blobs(TRIGGER_BUCKET, trigger_prefix)
         raw_records_count = count_blobs(RESULTS_BUCKET, raw_prefix)
@@ -261,7 +265,12 @@ def wait_until_complete(
 
         # E3 adaptation: input files are intentionally retained in trigger bucket; completion is defined by observed raw records.
         if raw_records_count >= staged_count:
-            return
+            completion_confirmations += 1
+            # E3 adaptation: require consecutive confirmations to avoid listing/downloading raw blobs during write races.
+            if completion_confirmations >= 2:
+                return
+        else:
+            completion_confirmations = 0
 
         if elapsed >= timeout_sec:
             raise TimeoutError(
@@ -271,11 +280,30 @@ def wait_until_complete(
         time.sleep(max(1, poll_interval_sec))
 
 
+def _download_blob_text_with_retry(bucket_name: str, blob_name: str) -> str:
+    # E3 adaptation: raw blob generations can be replaced by duplicate event retries, so re-read latest object on transient 404.
+    last_exc: Exception | None = None
+    for attempt in range(1, READ_RETRY_ATTEMPTS + 1):
+        try:
+            return storage_client().bucket(bucket_name).blob(blob_name).download_as_text()
+        except NotFound as exc:
+            last_exc = exc
+            if attempt >= READ_RETRY_ATTEMPTS:
+                break
+            time.sleep(READ_RETRY_SLEEP_SEC)
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"Failed to read gs://{bucket_name}/{blob_name}")
+
+
 def read_run_records(test_case_folder: str, run_id: str) -> list[dict]:
     prefix = f"results/{test_case_folder}/raw/{run_id}/"
     records = []
-    for blob in list_blobs(RESULTS_BUCKET, prefix):
-        payload = json.loads(blob.download_as_text())
+    blob_names = sorted(
+        blob.name for blob in list_blobs(RESULTS_BUCKET, prefix) if blob.name.lower().endswith(".json")
+    )
+    for blob_name in blob_names:
+        payload = json.loads(_download_blob_text_with_retry(RESULTS_BUCKET, blob_name))
         records.append(payload)
     return records
 

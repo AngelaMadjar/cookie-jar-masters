@@ -26,18 +26,6 @@ CASE_FOLDER_BY_ID = {
 }
 
 
-def _is_gcs_uri(value: str) -> bool:
-    return value.startswith("gs://")
-
-
-def _is_supported_month(month: str) -> bool:
-    return month == DEFAULT_MONTH
-
-
-def _is_valid_e3_input_file(file_path: str) -> bool:
-    return file_path.startswith(f"gs://{E3_RUNTIME_BUCKET}/input/{DEFAULT_MONTH}/") and file_path.endswith(".csv")
-
-
 def _infer_month_from_object_name(object_name: str) -> str:
     parts = PurePosixPath(object_name).parts
     if len(parts) >= 2 and parts[0] == "input":
@@ -104,18 +92,6 @@ def ingest_file():
     if not month or not isinstance(month, str):
         return jsonify({"error": "bad request", "details": "month is required"}), 400
 
-    if not _is_gcs_uri(file_path):
-        return jsonify({"error": "bad request", "details": "file_path must be a gs:// URI"}), 400
-    if not _is_supported_month(month):
-        return jsonify({"error": "bad request", "details": f"month must be {DEFAULT_MONTH}"}), 400
-    if not _is_valid_e3_input_file(file_path=file_path):
-        return jsonify(
-            {
-                "error": "bad request",
-                "details": f"file_path must be under gs://{E3_RUNTIME_BUCKET}/input/{DEFAULT_MONTH}/",
-            }
-        ), 400
-
     try:
         result = TrackerIngestionOrchestrator.ingest_single_file(
             file_path=file_path,
@@ -162,21 +138,11 @@ def ingest_file():
 def on_storage_finalized():
     # E3 adaptation: Cloud Storage finalize events become ingestion triggers.
     payload = request.get_json(silent=True) or {}
-    ce_type = request.headers.get("ce-type") or payload.get("type") or ""
-    if ce_type and ce_type != "google.cloud.storage.object.v1.finalized":
-        return jsonify({"status": "ignored", "details": f"unsupported event type: {ce_type}"}), 200
-
     file_path, object_name, metadata = _event_payload_to_file_path(payload)
     if not file_path or not object_name:
         return jsonify({"error": "bad request", "details": "missing storage event bucket/name"}), 400
 
-    # E3 adaptation: only month 2026-02 is in scope for this benchmark setup.
     month = str(metadata.get("month") or _infer_month_from_object_name(object_name) or DEFAULT_MONTH)
-    if not _is_supported_month(month):
-        return jsonify({"status": "ignored", "details": f"unsupported month: {month}", "file_path": file_path}), 200
-    if not _is_valid_e3_input_file(file_path=file_path):
-        return jsonify({"status": "ignored", "file_path": file_path}), 200
-
     test_case = str(metadata.get("test_case") or "unknown")
     # E3 adaptation: event metadata can carry benchmark folder name so raw results map to T*_descriptive folders.
     test_case_folder = str(metadata.get("test_case_folder") or _benchmark_case_folder(test_case))

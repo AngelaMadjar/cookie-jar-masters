@@ -26,6 +26,7 @@ CASE_FOLDER_BY_ID = {
 }
 
 
+
 def _infer_month_from_object_name(object_name: str) -> str:
     parts = PurePosixPath(object_name).parts
     if len(parts) >= 2 and parts[0] == "input":

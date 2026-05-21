@@ -1,0 +1,35 @@
+steps:
+  # E3 adaptation: build and deploy a dedicated staging job that uploads benchmark files to runtime input prefix.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - tools/upload-benchmarks/Dockerfile
+      - -t
+      - europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-upload-benchmarks:$COMMIT_SHA
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-upload-benchmarks:$COMMIT_SHA
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - cookie-jar-upload-benchmarks-e3
+      - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-upload-benchmarks:$COMMIT_SHA
+      - --region=europe-west1
+      - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
+      - --tasks=1
+      - --max-retries=0
+      - --task-timeout=7200s
+      - --command=python3
+      - --args=tools/upload-benchmarks/run_upload_benchmarks.py
+      - --set-env-vars=PYTHONUNBUFFERED=1
+
+options:
+  logging: CLOUD_LOGGING_ONLY

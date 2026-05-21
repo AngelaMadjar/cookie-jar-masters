@@ -444,7 +444,8 @@ def generate_case(
 
         out_path = input_dir / src.name
         out.to_csv(out_path, index=False, encoding=encoding)
-        paths.append(str(out_path))
+        # E3 adaptation: manifests must use descriptive benchmark folder paths used by the E3 GCS bucket layout.
+        paths.append(f"gs://e3-data-benchmarks/{case_folder.name}/input/{src.name}")
 
         totals["total_rows"] += n
         totals["new_records"] += new_n

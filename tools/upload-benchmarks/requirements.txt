@@ -1,0 +1,4 @@
+# E3 adaptation: requests for app/db endpoints, storage for GCS staging/artifacts, monitoring for instance metrics.
+requests==2.32.3
+google-cloud-storage==2.17.0
+google-cloud-monitoring==2.22.0

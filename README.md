@@ -19,7 +19,7 @@ This class version focuses on one slice of the original platform: **ingestion an
 ### Tech Stack
 - **Backend:** Flask
 - **Database:** PostgreSQL with SQLAlchemy
-- **Load testing:** Locust
+- **Benchmark driver:** Cloud Run Job (event-driven staging)
 
 ### Architecture
 
@@ -38,7 +38,7 @@ POST /scan/ingest
 One request processes exactly one file path from:
 
 ```text
-data/monthly_tracker_audits/input/2026-02/<file>.csv
+gs://e3-data-monthly-audit-trackers/input/2026-02/<file>.csv
 ```
 
 The endpoint validates and ingests file rows, cross-references or upserts trackers against the database, produces a processing summary, and moves the file through the `input`, `processed`, and `failed` lifecycle folders.

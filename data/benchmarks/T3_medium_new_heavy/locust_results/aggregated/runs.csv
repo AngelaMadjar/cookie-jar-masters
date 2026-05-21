@@ -1,4 +1,0 @@
-run_id,test_case,repeat_index,locust_exit_code,requests_total,requests_ok,requests_failed,total_processing_time_sec,files_per_sec,records_per_sec,processing_time_p50_sec,processing_time_p95_sec,end_to_end_latency_p95_sec,queue_wait_time_p95_sec,created_trackers_total,existing_trackers_total,failed_rows_total,max_active_processing_requests_observed,max_active_requests_seen_observed
-T3_r1_20260516T201333Z,T3,1,0,80,80,0,45.202825,1.769801,3539.601784,4.249649,5.307823,5.310117,0.06938,128000,14402,16000,8,8
-T3_r2_20260516T201422Z,T3,2,0,80,80,0,43.009056,1.860073,3720.146752,4.185469,4.578685,4.584585,0.057849,128000,14402,16000,8,8
-T3_r3_20260516T201511Z,T3,3,0,80,80,0,44.509232,1.79738,3594.759847,4.268933,5.138242,5.140729,0.063535,128000,14402,16000,8,8

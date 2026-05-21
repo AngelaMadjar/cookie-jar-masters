@@ -74,16 +74,63 @@ def _event_payload_to_file_path(payload: dict) -> tuple[str | None, str | None, 
     return f"gs://{bucket}/{object_name}", object_name, metadata
 
 
+def _normalize_ingest_payload(payload: dict) -> tuple[dict | None, bool, dict | None, int | None]:
+    # E3 adaptation: allow the canonical /scan/ingest endpoint to accept both HTTP benchmark payloads and GCS finalize events.
+    file_path = payload.get("file_path")
+    if file_path and isinstance(file_path, str):
+        return (
+            {
+                "file_path": file_path,
+                "test_case": payload.get("test_case"),
+                "test_case_folder": payload.get("test_case_folder"),
+                "run_id": payload.get("run_id"),
+                "month": payload.get("month", DEFAULT_MONTH),
+            },
+            False,
+            None,
+            None,
+        )
+
+    file_path, object_name, metadata = _event_payload_to_file_path(payload)
+    if not file_path or not object_name:
+        return None, False, {"error": "bad request", "details": "file_path is required"}, 400
+
+    # E3 adaptation: process only benchmark input object finalizations to avoid loops from results/processed/failed writes.
+    if "/input/" not in object_name:
+        return None, True, {"status": "ignored", "file_path": file_path}, 200
+
+    month = str(metadata.get("month") or _infer_month_from_object_name(object_name) or DEFAULT_MONTH)
+    test_case = str(metadata.get("test_case") or "unknown")
+    test_case_folder = str(metadata.get("test_case_folder") or _benchmark_case_folder(test_case))
+    run_id = str(metadata.get("run_id") or f"run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}")
+    return (
+        {
+            "file_path": file_path,
+            "test_case": test_case,
+            "test_case_folder": test_case_folder,
+            "run_id": run_id,
+            "month": month,
+        },
+        True,
+        None,
+        None,
+    )
+
+
 @bp.post("/ingest")
 def ingest_file():
     request_received_timestamp = datetime.now(timezone.utc)
     payload = request.get_json(silent=True) or {}
-    file_path = payload.get("file_path")
-    test_case = payload.get("test_case")
+    normalized_payload, is_storage_event, early_body, early_status = _normalize_ingest_payload(payload)
+    if early_body is not None:
+        return jsonify(early_body), int(early_status or 400)
+
+    file_path = normalized_payload.get("file_path") if normalized_payload else None
+    test_case = normalized_payload.get("test_case") if normalized_payload else None
     # E3 adaptation: optional folder hint keeps benchmark artifacts in the expected GCS case folder.
-    test_case_folder = payload.get("test_case_folder")
-    run_id = payload.get("run_id")
-    month = payload.get("month", DEFAULT_MONTH)
+    test_case_folder = normalized_payload.get("test_case_folder") if normalized_payload else None
+    run_id = normalized_payload.get("run_id") if normalized_payload else None
+    month = normalized_payload.get("month") if normalized_payload else None
 
     if not file_path or not isinstance(file_path, str):
         return jsonify({"error": "bad request", "details": "file_path is required"}), 400
@@ -115,7 +162,31 @@ def ingest_file():
             },
             test_case_folder=test_case_folder,
         )
+        if is_storage_event:
+            # E3 adaptation: Eventarc callers only need an acknowledgment payload and stable status.
+            return jsonify({"status": "processed", "file_path": file_path, "run_id": run_id}), 200
         return jsonify(result), 200
+    except NotFound:
+        if is_storage_event:
+            # E3 adaptation: duplicate finalize events are expected, so missing source object is treated as safe skip.
+            return jsonify({"status": "skipped", "reason": "source object not found", "file_path": file_path}), 200
+        _write_raw_record(
+            test_case=test_case,
+            run_id=run_id,
+            file_path=file_path,
+            record={
+                "file_path": file_path,
+                "status_code": 500,
+                "ok": False,
+                "error": "source object not found",
+                "test_case": test_case,
+                "run_id": run_id,
+                "month": month,
+                "request_received_timestamp": request_received_timestamp.isoformat(),
+            },
+            test_case_folder=test_case_folder,
+        )
+        return jsonify({"error": "internal error", "details": "source object not found"}), 500
     except Exception as exc:
         _write_raw_record(
             test_case=test_case,
@@ -138,62 +209,5 @@ def ingest_file():
 
 @bp.post("/events/storage-finalized")
 def on_storage_finalized():
-    # E3 adaptation: Cloud Storage finalize events become ingestion triggers.
-    payload = request.get_json(silent=True) or {}
-    file_path, object_name, metadata = _event_payload_to_file_path(payload)
-    if not file_path or not object_name:
-        return jsonify({"error": "bad request", "details": "missing storage event bucket/name"}), 400
-
-    month = str(metadata.get("month") or _infer_month_from_object_name(object_name) or DEFAULT_MONTH)
-    # E3 adaptation: process only benchmark input object finalizations to avoid loops from results/processed/failed writes.
-    if "/input/" not in object_name:
-        return jsonify({"status": "ignored", "file_path": file_path}), 200
-    test_case = str(metadata.get("test_case") or "unknown")
-    # E3 adaptation: event metadata can carry benchmark folder name so raw results map to T*_descriptive folders.
-    test_case_folder = str(metadata.get("test_case_folder") or _benchmark_case_folder(test_case))
-    run_id = str(metadata.get("run_id") or f"run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}")
-
-    request_received_timestamp = datetime.now(timezone.utc)
-    try:
-        result = TrackerIngestionOrchestrator.ingest_single_file(
-            file_path=file_path,
-            test_case=test_case,
-            run_id=run_id,
-            month=month,
-            request_received_timestamp=request_received_timestamp,
-        )
-        _write_raw_record(
-            test_case=test_case,
-            run_id=run_id,
-            file_path=file_path,
-            record={
-                "file_path": file_path,
-                "status_code": 200,
-                "ok": True,
-                "error": None,
-                **result,
-            },
-            test_case_folder=test_case_folder,
-        )
-        return jsonify({"status": "processed", "file_path": file_path, "run_id": run_id}), 200
-    except NotFound:
-        # E3 adaptation: duplicate finalize events are expected, so missing source object is treated as safe skip.
-        return jsonify({"status": "skipped", "reason": "source object not found", "file_path": file_path}), 200
-    except Exception as exc:
-        _write_raw_record(
-            test_case=test_case,
-            run_id=run_id,
-            file_path=file_path,
-            record={
-                "file_path": file_path,
-                "status_code": 500,
-                "ok": False,
-                "error": str(exc),
-                "test_case": test_case,
-                "run_id": run_id,
-                "month": month,
-                "request_received_timestamp": request_received_timestamp.isoformat(),
-            },
-            test_case_folder=test_case_folder,
-        )
-        return jsonify({"error": "internal error", "details": str(exc)}), 500
+    # E3 adaptation: keep backward-compatible event path while delegating to the canonical /scan/ingest handler.
+    return ingest_file()

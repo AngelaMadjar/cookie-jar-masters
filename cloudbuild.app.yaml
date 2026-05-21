@@ -39,7 +39,7 @@ steps:
     args:
       - -c
       - |
-        # E3 adaptation: create an Eventarc trigger so e3 benchmark uploads invoke /scan/events/storage-finalized.
+        # E3 adaptation: create an Eventarc trigger so e3 benchmark uploads invoke the canonical /scan/ingest endpoint.
         # E3 adaptation: escape shell vars with $$ so Cloud Build doesn't treat them as template substitutions.
         set -euo pipefail
         TRIGGER_NAME="cookie-jar-app-e3-storage-finalized"
@@ -52,7 +52,7 @@ steps:
           --location="$$REGION" \
           --destination-run-service=cookie-jar-app-e3 \
           --destination-run-region="$$REGION" \
-          --destination-run-path=/scan/events/storage-finalized \
+          --destination-run-path=/scan/ingest \
           --event-filters=type=google.cloud.storage.object.v1.finalized \
           --event-filters=bucket=e3-data-benchmarks \
           --service-account="$$SA"

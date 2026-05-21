@@ -8,8 +8,7 @@ import os
 import shlex
 import subprocess
 import sys
-import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
 from statistics import median
@@ -17,11 +16,16 @@ from urllib.parse import quote
 
 import requests
 from google.cloud import storage
+from google.protobuf.timestamp_pb2 import Timestamp
+try:
+    from google.cloud import monitoring_v3
+except Exception:  # pragma: no cover
+    monitoring_v3 = None
 
 # Example command to run the Locust Cloud Run job
 #  gcloud run jobs execute cookie-jar-locust-e2 \
 #  --region=europe-west1 \
-#  --args="tools/locust/run_locust_benchmarks.py,--host,https://cookie-jar-app-e2-656924888958.europe-west1.run.app,--test-cases,T1 --repeats,3"
+#  --args="tools/locust/run_locust_benchmarks.py,--host,https://cookie-jar-app-e2-656924888958.europe-west1.run.app,--test-cases,T1"
 
 CASE_TO_FOLDER = {
     "T1": "T1_original",
@@ -37,21 +41,23 @@ GCS_BUCKET = "e2-data"
 RUNTIME_INPUT_PREFIX = "monthly_tracker_audits/input"
 RUNTIME_PROCESSED_PREFIX = "monthly_tracker_audits/processed"
 RUNTIME_FAILED_PREFIX = "monthly_tracker_audits/failed"
+CLOUD_RUN_SERVICE_NAME = os.getenv("CLOUD_RUN_SERVICE_NAME", "cookie-jar-app-e2")
+CLOUD_RUN_REGION = os.getenv("CLOUD_RUN_REGION", "europe-west1")
+
 _STORAGE_CLIENT: storage.Client | None = None
+_MONITORING_CLIENT = None
 _ID_TOKEN_CACHE: dict[str, str] = {}
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Run Locust benchmarks for T1-T7 with automated DB reset and file staging.")
+    p = argparse.ArgumentParser(description="Run one Locust benchmark for T1-T7 with automated DB reset and file staging.")
     p.add_argument("--host", default="http://127.0.0.1:8080", help="Ingestion app base URL")
     p.add_argument("--month", default="2026-02")
     p.add_argument("--test-cases", default="T1,T2,T3,T4,T5,T6,T7")
-    p.add_argument("--repeats", type=int, default=3)
     p.add_argument("--users", type=int, default=80)
     p.add_argument("--spawn-rate", type=int, default=80)
     p.add_argument("--total-requests", type=int, default=80)
     p.add_argument("--ui", action="store_true", help="Run locust in web UI mode with autostart/autoquit.")
-    p.add_argument("--repeat-delay-sec", type=int, default=300, help="Delay between repeats to reduce cross-run interference.")
     p.add_argument("--results-dir", default="", help="Optional override for results root. If unset, writes under each case folder.")
     p.add_argument("--locust-bin", default="python3 -m locust")
     return p
@@ -73,12 +79,45 @@ def _percentile(values: list[float], p: float) -> float:
     return float(ordered[idx])
 
 
+def _parse_utc_iso(ts: str | None) -> datetime | None:
+    if not ts or not isinstance(ts, str):
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _gcp_project_id() -> str | None:
+    return (
+        os.getenv("GOOGLE_CLOUD_PROJECT")
+        or os.getenv("GCP_PROJECT")
+        or os.getenv("GCLOUD_PROJECT")
+    )
+
+
+def _to_proto_timestamp(dt: datetime) -> Timestamp:
+    ts = Timestamp()
+    ts.FromDatetime(dt)
+    return ts
+
+
 def storage_client() -> storage.Client:
     # E2 GCS adaptation: runner now orchestrates benchmark artifacts directly in GCS.
     global _STORAGE_CLIENT
     if _STORAGE_CLIENT is None:
         _STORAGE_CLIENT = storage.Client()
     return _STORAGE_CLIENT
+
+
+def monitoring_client():
+    # E2 observability addition: query Cloud Monitoring for max active Cloud Run instances per run window.
+    global _MONITORING_CLIENT
+    if monitoring_v3 is None:
+        return None
+    if _MONITORING_CLIENT is None:
+        _MONITORING_CLIENT = monitoring_v3.MetricServiceClient()
+    return _MONITORING_CLIENT
 
 
 def parse_gs_uri(gs_uri: str) -> tuple[str, str]:
@@ -99,7 +138,7 @@ def upload_text_gs(gs_uri: str, content: str, content_type: str = "application/j
 
 
 def download_text_gs(gs_uri: str) -> str:
-    # E2 GCS adaptation: load manifests/aggregates directly from GCS.
+    # E2 GCS adaptation: load manifests directly from GCS.
     bucket_name, blob_name = parse_gs_uri(gs_uri)
     return storage_client().bucket(bucket_name).blob(blob_name).download_as_text()
 
@@ -112,18 +151,6 @@ def delete_prefix_gs(bucket_name: str, prefix: str) -> int:
         blob.delete()
         deleted += 1
     return deleted
-
-
-def list_gs_uris(prefix_gs_uri: str) -> list[str]:
-    # E2 GCS adaptation: list per-run aggregate artifacts stored in GCS prefixes.
-    bucket_name, prefix = parse_gs_uri(prefix_gs_uri)
-    bucket = storage_client().bucket(bucket_name)
-    uris: list[str] = []
-    for blob in storage_client().list_blobs(bucket, prefix=prefix):
-        if blob.name.endswith("/"):
-            continue
-        uris.append(f"gs://{bucket_name}/{blob.name}")
-    return sorted(uris)
 
 
 def _post_ok(host: str, endpoint: str, payload: dict):
@@ -251,12 +278,72 @@ def run_locust(args, run_spec_payload: dict, raw_json_path: str) -> int:
     return int(completed.returncode)
 
 
-def load_raw_records(path: str) -> list[dict]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    return payload.get("records") or []
+def cloud_run_max_active_instances_observed(records: list[dict]) -> int | None:
+    # E2 observability addition: enrich each run row with max active Cloud Run instances during the run window.
+    if monitoring_v3 is None:
+        return None
+    project_id = _gcp_project_id()
+    if not project_id:
+        return None
+
+    starts = [_parse_utc_iso(r.get("request_received_timestamp")) for r in records]
+    finishes = [_parse_utc_iso(r.get("response_finished_timestamp")) for r in records]
+    starts = [x for x in starts if x is not None]
+    finishes = [x for x in finishes if x is not None]
+
+    if not starts or not finishes:
+        return None
+
+    start_dt = min(starts)
+    end_dt = max(finishes)
+
+    if end_dt <= start_dt:
+        end_dt = start_dt + timedelta(seconds=1)
+
+    # Add a small buffer to improve chances of reading just-published points.
+    end_dt = end_dt + timedelta(seconds=120)
+
+    try:
+        req = monitoring_v3.ListTimeSeriesRequest(
+            name=f"projects/{project_id}",
+            filter=(
+                'metric.type = "run.googleapis.com/container/instance_count" '
+                'AND resource.type = "cloud_run_revision" '
+                f'AND resource.labels.service_name = "{CLOUD_RUN_SERVICE_NAME}" '
+                f'AND resource.labels.location = "{CLOUD_RUN_REGION}" '
+                'AND metric.labels.state = "active"'
+            ),
+            interval=monitoring_v3.TimeInterval(
+                start_time=_to_proto_timestamp(start_dt),
+                end_time=_to_proto_timestamp(end_dt),
+            ),
+            view=monitoring_v3.ListTimeSeriesRequest.TimeSeriesView.FULL,
+        )
+        client = monitoring_client()
+        if client is None:
+            return None
+        series = client.list_time_series(request=req)
+
+        max_seen: float | None = None
+        for ts in series:
+            for pt in ts.points:
+                value = None
+                if pt.value.int64_value is not None:
+                    value = float(pt.value.int64_value)
+                elif pt.value.double_value is not None:
+                    value = float(pt.value.double_value)
+                if value is None:
+                    continue
+                if max_seen is None or value > max_seen:
+                    max_seen = value
+
+        return int(max_seen) if max_seen is not None else None
+    except Exception:
+        # Non-fatal by design: metrics lag/permissions should not fail the benchmark run.
+        return None
 
 
-def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, repeat_index: int, locust_exit_code: int) -> dict:
+def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, locust_exit_code: int) -> dict:
     ok_records = [r for r in records if r.get("ok")]
 
     queue_wait = [float(r.get("queue_wait_time_sec", 0) or 0) for r in ok_records]
@@ -287,7 +374,7 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, repe
     return {
         "run_id": run_id,
         "test_case": test_case,
-        "repeat_index": repeat_index,
+        "repeat_index": 1,
         "locust_exit_code": locust_exit_code,
         "requests_total": len(records),
         "requests_ok": files_count,
@@ -304,93 +391,23 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, repe
         "failed_rows_total": failed_total,
         "max_active_processing_requests_observed": int(max(active_parallel) if active_parallel else 0),
         "max_active_requests_seen_observed": int(max(max_active_seen) if max_active_seen else 0),
+        "cloud_run_max_active_instances_observed": cloud_run_max_active_instances_observed(records),
     }
 
 
 def write_case_outputs(case_dir: str, run_row: dict, records_payload: dict):
-    # E2 GCS adaptation: benchmark outputs are written to GCS instead of local benchmark folders.
+    # E2 GCS adaptation: benchmark outputs are written to GCS as per-run artifacts only.
     run_id = run_row["run_id"]
-    repeat_index = int(run_row["repeat_index"])
     raw_path = f"{case_dir}/raw/{run_id}.json"
     upload_text_gs(raw_path, json.dumps(records_payload, indent=2), content_type="application/json")
 
-    # E2 GCS adaptation: each run now persists a deterministic per-repeat aggregate row file.
-    run_csv_path = f"{case_dir}/aggregated/runs/run_{repeat_index}.csv"
+    run_csv_path = f"{case_dir}/aggregated/{run_id}.csv"
     fields = list(run_row.keys())
     out = StringIO()
     writer = csv.DictWriter(out, fieldnames=fields)
     writer.writeheader()
     writer.writerow(run_row)
     upload_text_gs(run_csv_path, out.getvalue(), content_type="text/csv")
-
-
-
-def write_case_summary(case_dir: str):
-    # E2 GCS adaptation: consolidate all immutable per-run aggregate files into runs.csv + summary.csv.
-    run_rows: list[dict] = []
-    runs_prefix = f"{case_dir}/aggregated/runs/"
-    for run_csv_uri in list_gs_uris(runs_prefix):
-        if not run_csv_uri.endswith(".csv"):
-            continue
-        try:
-            rows = list(csv.DictReader(StringIO(download_text_gs(run_csv_uri))))
-        except Exception:
-            rows = []
-        if rows:
-            run_rows.extend(rows)
-
-    # E2 GCS adaptation: fallback kept for backwards compatibility with older runs.csv-only outputs.
-    if not run_rows:
-        runs_csv = f"{case_dir}/aggregated/runs.csv"
-        try:
-            run_rows = list(csv.DictReader(StringIO(download_text_gs(runs_csv))))
-        except Exception:
-            run_rows = []
-
-    if run_rows:
-        run_rows.sort(key=lambda r: int(r.get("repeat_index", 0) or 0))
-        runs_csv = f"{case_dir}/aggregated/runs.csv"
-        out_runs = StringIO()
-        runs_fields = list(run_rows[0].keys())
-        runs_writer = csv.DictWriter(out_runs, fieldnames=runs_fields)
-        runs_writer.writeheader()
-        runs_writer.writerows(run_rows)
-        upload_text_gs(runs_csv, out_runs.getvalue(), content_type="text/csv")
-
-    rows = run_rows
-    if not rows:
-        return
-    numeric_keys = [
-        "total_processing_time_sec",
-        "files_per_sec",
-        "records_per_sec",
-        "processing_time_p50_sec",
-        "processing_time_p95_sec",
-        "end_to_end_latency_p95_sec",
-        "queue_wait_time_p95_sec",
-        "created_trackers_total",
-        "existing_trackers_total",
-        "failed_rows_total",
-        "max_active_processing_requests_observed",
-        "max_active_requests_seen_observed",
-    ]
-
-    summary = {
-        "test_case": rows[0]["test_case"],
-        "runs": len(rows),
-    }
-    for k in numeric_keys:
-        vals = [float(r.get(k, 0) or 0) for r in rows]
-        summary[f"{k}_mean"] = round(sum(vals) / len(vals), 6)
-        summary[f"{k}_min"] = round(min(vals), 6)
-        summary[f"{k}_max"] = round(max(vals), 6)
-
-    summary_path = f"{case_dir}/aggregated/summary.csv"
-    out = StringIO()
-    writer = csv.DictWriter(out, fieldnames=list(summary.keys()))
-    writer.writeheader()
-    writer.writerow(summary)
-    upload_text_gs(summary_path, out.getvalue(), content_type="text/csv")
 
 
 def main():
@@ -401,60 +418,49 @@ def main():
             raise ValueError(f"Unknown test case: {c}")
     if args.total_requests <= 0:
         raise ValueError("--total-requests must be > 0")
-    if args.repeats <= 0:
-        raise ValueError("--repeats must be > 0")
-    if args.repeat_delay_sec < 0:
-        raise ValueError("--repeat-delay-sec must be >= 0")
 
     for case in test_cases:
         case_dir = case_results_dir(case, args.results_dir)
         manifest_paths = load_manifest(case)
 
-        for repeat_index in range(1, args.repeats + 1):
-            run_id = f"{case}_r{repeat_index}_{_now_utc()}"
-            print(f"\n=== {case} repeat {repeat_index} ({run_id}) ===")
-            reset_and_seed_db(args.host)
-            clear_month_dirs(args.month)
-            stage_files(manifest_paths, args.month, args.total_requests)
+        run_id = f"run_{_now_utc()}"
+        print(f"\n=== {case} ({run_id}) ===")
+        reset_and_seed_db(args.host)
+        clear_month_dirs(args.month)
+        stage_files(manifest_paths, args.month, args.total_requests)
 
-            # Locust writes run details locally; runner then uploads persisted artifacts to GCS.
-            raw_json_path = f"/tmp/{run_id}.json"
-            run_spec_payload = {
-                "test_case": case,
-                "run_id": run_id,
-            }
-            exit_code = run_locust(args, run_spec_payload, raw_json_path)
-            if exit_code != 0:
-                print(f"  Locust exited with code {exit_code}. Aggregating partial/failed run from raw results.")
+        # Locust writes run details locally; runner then uploads persisted artifacts to GCS.
+        raw_json_path = f"/tmp/{run_id}.json"
+        run_spec_payload = {
+            "test_case": case,
+            "run_id": run_id,
+        }
+        exit_code = run_locust(args, run_spec_payload, raw_json_path)
+        if exit_code != 0:
+            print(f"  Locust exited with code {exit_code}. Aggregating partial/failed run from raw results.")
 
-            if not Path(raw_json_path).exists():
-                raise RuntimeError(
-                    f"Raw results not found for run {run_id} at {raw_json_path}. "
-                    f"Locust exit code was {exit_code}."
-                )
-            records_payload = json.loads(Path(raw_json_path).read_text(encoding="utf-8"))
-            records = records_payload.get("records") or []
-            run_row = aggregate_run_metrics(records, run_id, case, repeat_index, exit_code)
-            print("Step 5/5: Write results")
-            write_case_outputs(case_dir, run_row, records_payload)
-            print(
-                "  Run KPI snapshot: "
-                f"makespan={run_row['total_processing_time_sec']}s, "
-                f"files/s={run_row['files_per_sec']}, "
-                f"records/s={run_row['records_per_sec']}, "
-                f"max_parallel={run_row['max_active_processing_requests_observed']}"
+        if not Path(raw_json_path).exists():
+            raise RuntimeError(
+                f"Raw results not found for run {run_id} at {raw_json_path}. "
+                f"Locust exit code was {exit_code}."
             )
-            print(f"  Raw JSON (local temp): {raw_json_path}")
-            print(f"  Raw JSON (GCS): {case_dir}/raw/{run_id}.json")
-            if repeat_index < args.repeats and args.repeat_delay_sec > 0:
-                # E2 reliability control: cooldown between repeats reduces overlap from long-running prior requests.
-                print(f"  Cooldown before next repeat: sleeping {args.repeat_delay_sec}s")
-                time.sleep(args.repeat_delay_sec)
+        records_payload = json.loads(Path(raw_json_path).read_text(encoding="utf-8"))
+        records = records_payload.get("records") or []
+        run_row = aggregate_run_metrics(records, run_id, case, exit_code)
 
-        write_case_summary(case_dir)
-        print(f"Completed case {case}. Results: {case_dir}")
-        print(f"  Aggregated CSV: {case_dir}/aggregated/runs.csv")
-        print(f"  Summary CSV: {case_dir}/aggregated/summary.csv")
+        print("Step 5/5: Write results")
+        write_case_outputs(case_dir, run_row, records_payload)
+        print(
+            "  Run KPI snapshot: "
+            f"makespan={run_row['total_processing_time_sec']}s, "
+            f"files/s={run_row['files_per_sec']}, "
+            f"records/s={run_row['records_per_sec']}, "
+            f"max_parallel={run_row['max_active_processing_requests_observed']}, "
+            f"max_active_instances={run_row.get('cloud_run_max_active_instances_observed')}"
+        )
+        print(f"  Raw JSON (local temp): {raw_json_path}")
+        print(f"  Raw JSON (GCS): {case_dir}/raw/{run_id}.json")
+        print(f"  Aggregated CSV (GCS): {case_dir}/aggregated/{run_id}.csv")
 
     if args.results_dir.strip():
         print(f"\nAll done. Results root override: {args.results_dir}")

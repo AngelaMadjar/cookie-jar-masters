@@ -7,10 +7,20 @@ from app.models.vendor.vendor_descriptions import VendorDescriptions
 
 
 def now_utc():
+    """
+    Returns the current UTC timestamp.
+    """
     return datetime.now(timezone.utc)
 
 
 class VendorDescriptionsDAO:
+    """
+        Data Access Object for vendor-description association records.
+
+        This DAO manages the VendorDescriptions table, which links vendors to
+        descriptions and tracks current vs historical associations via is_current.
+    """
+
     @staticmethod
     def set_all_not_current(vendor_ids: list[int]):
         """
@@ -26,6 +36,13 @@ class VendorDescriptionsDAO:
 
     @staticmethod
     def bulk_insert_vendor_description_links(links: list[dict]):
+        """
+        Inserts vendor-description association rows in bulk.
+
+        If created_at is missing, it is filled with the current UTC timestamp.
+        Existing rows are preserved via ON CONFLICT DO NOTHING on
+        (vendor_id, vendor_description_id, is_current).
+        """
         if not links:
             return
 
@@ -42,7 +59,7 @@ class VendorDescriptionsDAO:
     @staticmethod
     def get_current_vendor_description_id(vendor_id: int) -> Optional[int]:
         """
-        Returns the current vendor_description_id for a vendor, or None.
+        Returns the current vendor_description_id for a vendor, or None if absent.
         """
         return db.session.execute(
             select(VendorDescriptions.vendor_description_id).where(
@@ -55,7 +72,7 @@ class VendorDescriptionsDAO:
     def set_not_current(vendor_id: int) -> int:
         """
         Marks all current vendor descriptions as NOT current for this vendor.
-        Returns number of rows updated.
+        Returns the number of rows updated.
         """
         result = db.session.execute(
             update(VendorDescriptions)
@@ -71,7 +88,9 @@ class VendorDescriptionsDAO:
     def insert_current(vendor_id: int, vendor_description_id: int, created_at):
         """
         Inserts a new current link row for vendor->description.
-        UNIQUE constraint: (vendor_id, vendor_description_id, is_current)
+
+        UNIQUE constraint:
+            (vendor_id, vendor_description_id, is_current)
         """
         query = (
             insert(VendorDescriptions)
@@ -89,6 +108,9 @@ class VendorDescriptionsDAO:
 
     @staticmethod
     def delete_all():
+        """
+        Deletes all vendor-description association rows and commits the transaction.
+        """
         VendorDescriptions.query.delete(synchronize_session=False)
         db.session.commit()
 

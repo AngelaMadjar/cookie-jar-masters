@@ -21,12 +21,29 @@ from app.daos.cmp.cmp_translation_mapping_dao import CmpTranslationMappingDAO
 
 
 def now_utc():
+    """
+    Returns the current UTC timestamp.
+    """
     return datetime.now(timezone.utc)
 
 
 class SeedService:
+    """
+        Database seeding service for tracker and CMP reference data.
+
+        This service loads seed CSV files (data/seed), normalizes input columns, 
+        and populates lookup tables, core tracker records, and association tables 
+        in dependency order so foreign-key references can be resolved correctly.
+    """
+
     @staticmethod
     def _read_csv_flexible(csv_path: str) -> pd.DataFrame:
+        """
+        Reads a CSV file using a fallback encoding strategy.
+
+        Tries utf-8-sig first, then latin-1. Raises the last read exception
+        if all attempts fail.
+        """
         last_error = None
         for encoding in ("utf-8-sig", "latin-1"):
             try:
@@ -43,6 +60,12 @@ class SeedService:
 
     @staticmethod
     def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Normalizes input column names to the internal schema field names.
+
+        Any required ingestion columns missing from the source are created with
+        None values so downstream logic can run consistently.
+        """
         rename_map = {
             "Tracking Domain": "tracking_domain",
             "Consent Category": "consent_category",
@@ -73,6 +96,15 @@ class SeedService:
 
     @staticmethod
     def _prepare_data(csv_path: str) -> pd.DataFrame:
+        """
+        Loads and cleans a seed CSV file for seeding operations.
+
+        Steps:
+        - read with flexible encoding
+        - normalize column names
+        - trim whitespace from string columns
+        - convert empty strings and "-" placeholders to None
+        """
         data = SeedService._read_csv_flexible(csv_path)
         data = SeedService._normalize_columns(data)
         string_cols = data.select_dtypes(include=["object"]).columns
@@ -83,6 +115,11 @@ class SeedService:
 
     @staticmethod
     def populate_from_csv(csv_path: str, source_name: str = "seed_anonymized.csv") -> dict:
+        """
+        Seeds tracker-related tables from a single CSV file.
+
+        Returns a summary dictionary with insertion attempt counters.
+        """
         data = SeedService._prepare_data(csv_path)
 
         return SeedService._populate_dataframe(data, source_name)
@@ -92,6 +129,14 @@ class SeedService:
         csv_paths: list[str],
         cmp_mappings_paths: list[str] = None,
     ) -> dict:
+        """
+        Seeds tracker-related tables from multiple CSV files merged together.
+
+        Each file is prepared with the same normalization/cleanup logic, then
+        concatenated and passed to the shared dataframe seeding flow.
+
+        Note: cmp_mappings_paths is currently unused in this method.
+        """
         if not csv_paths:
             raise ValueError("csv_paths cannot be empty")
 
@@ -108,6 +153,11 @@ class SeedService:
 
     @staticmethod
     def populate_cmp_mappings_from_files(cmp_mappings_paths: list[str]) -> dict:
+        """
+        Seeds CMP translation mapping data from one or more mapping CSV files.
+
+        Returns a summary with total inserted mapping rows.
+        """
         if not cmp_mappings_paths:
             raise ValueError("cmp_mappings_paths cannot be empty")
 
@@ -123,6 +173,13 @@ class SeedService:
 
     @staticmethod
     def load_cmp_translation_mappings(csv_path: str) -> int:
+        """
+        Loads CMP translation mapping rows from a single CSV file.
+
+        For each valid row, the method ensures dependent lookup values exist
+        (CMP, CMP translation, language ISO code), then inserts a mapping row
+        when not already present. Returns the number of newly inserted mappings.
+        """
         path = Path(csv_path)
         if not path.exists():
             return 0
@@ -181,6 +238,19 @@ class SeedService:
 
     @staticmethod
     def _populate_dataframe(data: pd.DataFrame, source_name: str) -> dict:
+        """
+        Core tracker-data seeding routine from a prepared dataframe.
+
+        Processing order:
+        - insert lookup/reference entities
+        - build value->id maps
+        - insert tracking domains
+        - insert trackers
+        - insert tracker-purpose associations
+        - insert vendor-description associations
+
+        Returns a summary dictionary with attempted row/link counts.
+        """
 
         # Distinct lists 
         # DB tableshave UNIQUE constraints, so I first select distinct values for these entities

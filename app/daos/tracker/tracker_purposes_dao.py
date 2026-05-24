@@ -7,10 +7,20 @@ from typing import Optional
 
 
 def now_utc():
+    """
+    Returns the current UTC timestamp.
+    """
     return datetime.now(timezone.utc)
 
 
 class TrackerPurposesDAO:
+    """
+        Data Access Object for tracker-purpose association records.
+
+        This DAO manages the TrackerPurposes table, which links trackers to
+        purposes and tracks current vs historical associations via is_current.
+    """
+
     @staticmethod
     def set_all_not_current(tracker_ids: list[int]):
         """
@@ -26,6 +36,13 @@ class TrackerPurposesDAO:
 
     @staticmethod
     def bulk_insert_tracker_purpose_links(links: list[dict]):
+        """
+        Inserts tracker-purpose association rows in bulk.
+
+        If created_at is missing, it is filled with the current UTC timestamp.
+        Existing rows are preserved via ON CONFLICT DO NOTHING on
+        (tracker_id, tracker_purpose_id, is_current).
+        """
 
         if not links:
             return
@@ -43,7 +60,7 @@ class TrackerPurposesDAO:
     @staticmethod
     def get_current_purpose_id(tracker_id: int) -> Optional[int]:
         """
-        Returns the current tracker_purpose_id for a tracker, or None.
+        Returns the current tracker_purpose_id for a tracker, or None if absent.
         """
         return db.session.execute(
             select(TrackerPurposes.tracker_purpose_id).where(
@@ -56,7 +73,7 @@ class TrackerPurposesDAO:
     def set_not_current(tracker_id: int) -> int:
         """
         Marks all current tracker purposes as not current for this tracker.
-        Returns number of rows updated.
+        Returns the number of rows updated.
         """
         result = db.session.execute(
             update(TrackerPurposes)
@@ -71,8 +88,10 @@ class TrackerPurposesDAO:
     @staticmethod
     def insert_current(tracker_id: int, tracker_purpose_id: int, created_at):
         """
-        Inserts the new current link.
-        UNIQUE constraint: (tracker_id, tracker_purpose_id, is_current)
+        Inserts a new current tracker-purpose link row.
+
+        UNIQUE constraint:
+            (tracker_id, tracker_purpose_id, is_current)
         """
         query = (
             insert(TrackerPurposes)
@@ -90,6 +109,9 @@ class TrackerPurposesDAO:
 
     @staticmethod
     def delete_all():
+        """
+        Deletes all tracker-purpose association rows and commits the transaction.
+        """
         TrackerPurposes.query.delete(synchronize_session=False)
         db.session.commit()
 

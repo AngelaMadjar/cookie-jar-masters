@@ -7,9 +7,18 @@ import pandas as pd
 
 from app.services.tracker_ingestion.validation_service import ValidationService
 
+# Tracker ingestion service flow:
+# IngestionService (ValidationService) -> ReferenceDataService -> TrackerUpsertService -> PurposeService -> ReportingService -> ScanLifecycleService
 
 @dataclass
 class IngestionResult:
+    """
+    Normalized ingestion payload returned by IngestionService.
+
+    - file_path/source_name/cmp_name describe the source file context
+    - good_df contains rows that can continue through ingestion
+    - bad_df contains validation-rejected rows
+    """
     file_path: Path
     source_name: str
     cmp_name: str
@@ -18,6 +27,16 @@ class IngestionResult:
 
 
 class IngestionService:
+    """
+    Reads and normalizes scan CSV files before persistence services run.
+
+    Responsibilities:
+    - read CSV with encoding fallback
+    - normalize source column names and missing required fields
+    - clean string placeholders/whitespace
+    - split rows into valid/invalid groups via ValidationService
+    """
+
     COLUMN_RENAMES = {
         "Tracking Domain": "tracking_domain",
         "Consent Category": "consent_category",
@@ -45,12 +64,18 @@ class IngestionService:
 
     @staticmethod
     def _extract_cmp_name(file_path: Path) -> str:
+        """
+        Derives CMP name from the filename prefix before the first '-'.
+        """
         # Local fallback convention: derive CMP from filename prefix before first dash.
         stem = file_path.stem
         return stem.split("-")[0].strip() or "unknown_cmp"
 
     @staticmethod
     def _read_csv(path: Path) -> pd.DataFrame:
+        """
+        Reads a CSV file using utf-8-sig first, then latin-1 as fallback.
+        """
         last_exc = None
         for encoding in ("utf-8-sig", "latin-1"):
             try:
@@ -61,6 +86,14 @@ class IngestionService:
 
     @staticmethod
     def _normalize(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Standardizes CSV columns and cleans textual values.
+
+        - renames known source columns to internal field names
+        - creates missing required columns with None
+        - strips whitespace from string columns
+        - converts empty strings and '-' placeholders to None
+        """
         df = df.rename(columns=IngestionService.COLUMN_RENAMES)
 
         for col in IngestionService.REQUIRED_COLUMNS:
@@ -75,6 +108,13 @@ class IngestionService:
 
     @staticmethod
     def load_and_validate(file_path: Path) -> IngestionResult:
+        """
+        End-to-end ingestion preparation for a single file.
+
+        Returns IngestionResult with:
+        - normalized file metadata
+        - rows split into good_df/bad_df by validation rules
+        """
         source_name = file_path.name
         cmp_name = IngestionService._extract_cmp_name(file_path)
 

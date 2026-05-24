@@ -14,6 +14,31 @@ from app.services.tracker_ingestion.tracker_upsert_service import TrackerUpsertS
 
 
 class TrackerIngestionOrchestrator:
+    """
+    End-to-end coordinator for single-file tracker ingestion.
+
+    Responsibilities:
+    - enforce bounded in-process concurrency via semaphore
+    - in practice, Gunicorn threads (8) and DB pool size (8) already constrain
+      parallelism.
+    - the semaphore adds an explicit application-level cap so request admission
+      is deterministic and queue-wait attribution is cleaner for benchmarking.
+
+    KPIs produced here:
+    - queue_wait_time_sec
+    - processing_time_sec
+    - end_to_end_latency_sec
+    - file_makespan_sec
+    - active_processing_requests
+    - max_active_requests_seen
+    - request/processing/response timestamps used for KPI derivation
+
+    Concurrency model:
+    - CONCURRENCY_LIMIT controls max active ingestion requests in this process
+    - _active_requests tracks current in-flight count
+    - _max_active_seen tracks the peak in-flight count observed so far
+    """
+
     CONCURRENCY_LIMIT = 8
     _semaphore = BoundedSemaphore(CONCURRENCY_LIMIT)
     _lock = Lock()
@@ -22,19 +47,38 @@ class TrackerIngestionOrchestrator:
 
     @staticmethod
     def _now_utc():
+        """
+        Returns the current UTC timestamp.
+        """
         return datetime.now(timezone.utc)
 
     @staticmethod
     def ingest_file(file_path: str | Path):
+        """
+        Runs the core ingestion pipeline for a single file path.
+
+        Service order:
+        1. IngestionService.load_and_validate
+        2. ReferenceDataService.build_reference_maps
+        3. TrackerUpsertService.upsert_trackers
+        4. PurposeService.create_purpose_links
+        5. ReportingService.build_output_frames + summarize
+
+        Returns processed/failed dataframes plus base count summary.
+        """
         source_path = Path(file_path)
         ingestion = IngestionService.load_and_validate(source_path)
 
+        # Ensure lookup/reference rows exist and build in-memory value->id maps
+        # used to resolve foreign keys during upsert.
         refs = ReferenceDataService.build_reference_maps(
             ingestion.good_df,
             ingestion.source_name,
             ingestion.cmp_name,
         )
 
+        # Match rows to existing trackers by identity key, insert missing ones,
+        # and ensure tracker<->cmp activation links.
         upsert_result = TrackerUpsertService.upsert_trackers(
             ingestion.good_df,
             refs,
@@ -42,12 +86,16 @@ class TrackerIngestionOrchestrator:
             ingestion.source_name,
         )
 
+        # Create tracker-purpose association links for rows where purpose data
+        # is present and resolvable to IDs.
         purpose_links = PurposeService.create_purpose_links(
             ingestion.good_df,
             refs,
             upsert_result.tracker_map,
         )
 
+        # Build per-file processed/failed output frames; failed rows are
+        # validation-rejected rows from ingestion.bad_df.
         processed_df, failed_df = ReportingService.build_output_frames(
             ingestion.good_df,
             ingestion.bad_df,
@@ -75,6 +123,24 @@ class TrackerIngestionOrchestrator:
         month: str = "2026-02",
         request_received_timestamp: datetime | None = None,
     ) -> dict:
+        """
+        Full request handler used by the /scan/ingest route.
+
+        Steps:
+        - timestamp request receipt
+        - wait for concurrency slot (semaphore)
+        - run ingest_file pipeline
+        - persist file outputs to processed/failed lifecycle folders
+        - compute and attach benchmark KPIs
+
+        KPI definitions:
+        - queue_wait_time_sec: processing_start - request_received
+        - processing_time_sec: processing_finished - processing_start
+        - end_to_end_latency_sec: response_finished - request_received
+        - file_makespan_sec: perf_counter duration from method entry
+        - active_processing_requests: in-flight count when processing starts
+        - max_active_requests_seen: process-wide peak observed in-flight count
+        """
         request_received = request_received_timestamp or TrackerIngestionOrchestrator._now_utc()
         file_started = perf_counter()
 
@@ -83,9 +149,7 @@ class TrackerIngestionOrchestrator:
             with TrackerIngestionOrchestrator._lock:
                 TrackerIngestionOrchestrator._active_requests += 1
                 if TrackerIngestionOrchestrator._active_requests > TrackerIngestionOrchestrator._max_active_seen:
-                    TrackerIngestionOrchestrator._max_active_seen = (
-                        TrackerIngestionOrchestrator._active_requests
-                    )
+                    TrackerIngestionOrchestrator._max_active_seen = (TrackerIngestionOrchestrator._active_requests)
                 active_processing_requests = TrackerIngestionOrchestrator._active_requests
 
             processing_start = TrackerIngestionOrchestrator._now_utc()

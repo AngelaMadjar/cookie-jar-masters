@@ -1,36 +1,46 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
-import re
-from pathlib import Path
-
 """
-Run specific files:
+Anonymize client-identifying text in files by replacing case-insensitive
+client name tokens with "CLIENT_X".
+
+Behavior:
+- Replaces matches in both file content and output path segments.
+- Supports processing specific files (--input-file, repeatable) or all files
+  under an input directory (--input-dir).
+- Preserves source relative structure in directory mode.
+- Writes anonymized results under --output-dir.
+
+Examples:
+1) Specific files
     python scripts/anonymize_client_files.py \
     --input-file "/Users/angela.madjar/Repositories/Philips/CookieJar/cookie-jar/data/Master Cookie list & purposes (Global) - Jan 24(1P cookies) - Final.csv" \
     --input-file "/Users/angela.madjar/Repositories/Philips/CookieJar/cookie-jar/data/Master Cookie list & purposes (Global) - Jan 24(3P cookies) - Final.csv" \
     --output-dir "/Users/angela.madjar/Angela/Finki-Masters/cookie-jar-masters/data"
-"""
 
-"""
-Run all files in a folder:
+2) Whole directory
     python scripts/anonymize_client_files.py \
     --input-dir "/Users/angela.madjar/Repositories/Philips/CookieJar/cookie-jar/data" \
     --output-dir "/Users/angela.madjar/Angela/Finki-Masters/cookie-jar-masters/data"
 """
 
 
+import argparse
+import re
+from pathlib import Path
 
 CLIENT_PATTERN = re.compile(r"philips", re.IGNORECASE)
 REPLACEMENT = "CLIENT_X"
 
 
 def anonymize_text(text: str) -> str:
+    """Replace all case-insensitive client tokens in text."""
     return CLIENT_PATTERN.sub(REPLACEMENT, text)
 
 
 def read_text_file(path: Path) -> tuple[str, str]:
+    """Read text file with utf-8 fallback to latin-1; return (content, encoding)."""
     for encoding in ("utf-8", "latin-1"):
         try:
             return path.read_text(encoding=encoding), encoding
@@ -40,6 +50,12 @@ def read_text_file(path: Path) -> tuple[str, str]:
 
 
 def process_file(source_path: Path, source_root: Path, output_root: Path) -> Path:
+    """
+    Anonymize a single file and write it under output_root.
+
+    Output path keeps source_path relative-to source_root, with each path
+    segment anonymized.
+    """
     relative_path = source_path.relative_to(source_root)
     anonymized_relative = Path(*[anonymize_text(part) for part in relative_path.parts])
     output_path = output_root / anonymized_relative
@@ -52,6 +68,7 @@ def process_file(source_path: Path, source_root: Path, output_root: Path) -> Pat
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Create CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Anonymize client name in files by replacing 'Philips' with 'CLIENT_X'."
     )
@@ -78,6 +95,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """
+    Parse arguments, collect source files, anonymize them, and write outputs.
+
+    - In file mode (--input-file), each selected file is written directly under
+      output-dir (with anonymized filename/path segments).
+    - In directory mode (--input-dir), the source directory tree structure is
+      preserved under output-dir.
+    """
     args = build_parser().parse_args()
     output_dir = Path(args.output_dir).resolve()
     input_files = [Path(path).resolve() for path in args.input_file]

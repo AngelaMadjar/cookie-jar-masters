@@ -11,6 +11,24 @@ bp = Blueprint("tracker_ingestion", __name__, url_prefix="/scan")
 
 @bp.post("/ingest")
 def ingest_file():
+    """
+    Ingests exactly one staged scan CSV file and returns per-file KPI summary.
+
+    Expected JSON payload:
+    - file_path: absolute/relative path to a CSV staged under
+      data/monthly_tracker_audits/input/<month>
+    - test_case: benchmark case label (for example T1-T7)
+    - run_id: benchmark run identifier
+    - month: workload month folder (default: "2026-02")
+
+    Validation behavior:
+    - Rejects missing/invalid fields (400)
+    - Rejects non-existent files (400)
+    - Rejects file paths outside the expected monthly input folder (400)
+
+    On success, delegates to TrackerIngestionOrchestrator and returns a JSON
+    summary including count and timing/concurrency KPIs.
+    """
     request_received_timestamp = datetime.now(timezone.utc)
     payload = request.get_json(silent=True) or {}
     file_path = payload.get("file_path")

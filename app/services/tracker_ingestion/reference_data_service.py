@@ -13,9 +13,16 @@ from app.daos.tracker.tracking_domain_dao import TrackingDomainDAO
 from app.daos.vendor.vendor_dao import VendorDAO
 from app.daos.vendor.vendor_description_dao import VendorDescriptionDAO
 
+# Tracker ingestion service flow:
+# IngestionService (ValidationService) -> ReferenceDataService -> TrackerUpsertService -> PurposeService -> ReportingService -> ScanLifecycleService
 
 @dataclass
 class ReferenceMaps:
+    """
+    Collection of lookup maps used during ingestion upsert/linking.
+
+    Each map resolves normalized text (or composite domain key) to database IDs.
+    """
     tracker_types: dict[str, int]
     tracker_sources: dict[str, int]
     tracker_categories: dict[str, int]
@@ -27,14 +34,40 @@ class ReferenceMaps:
 
 
 class ReferenceDataService:
+    """
+    Prepares foreign-key lookup dictionaries used by tracker upsert.
+
+    The CSV contains text values (for example tracker type/category/vendor and
+    tracking domain), but tracker inserts require numeric FK IDs.
+
+    This service performs two steps before upsert:
+    1. Ensure lookup rows exist in DB (insert missing values once).
+    2. Read lookup tables from DB and build in-memory dictionaries, such as:
+       - "JavaScript" -> tracker_type_id
+       - "Vendor A" -> vendor_id
+       - ("example.com", vendor_id) -> tracking_domain_id
+
+    Downstream services then resolve each CSV row through these dictionaries
+    instead of querying the database row-by-row.
+    """
+
     @staticmethod
     def _distinct_values(df: pd.DataFrame, column: str) -> list[str]:
+        """
+        Returns non-empty distinct string values for a dataframe column.
+        """
         if column not in df.columns:
             return []
         return [v for v in df[column].dropna().astype(str).unique().tolist() if v]
 
     @staticmethod
     def ensure_lookups(df: pd.DataFrame, source_name: str, cmp_name: str):
+        """
+        Inserts/ensures lookup-table values required by ingestion rows.
+
+        Populates tracker type/source/category, vendor, cmp, tracker purpose,
+        and vendor description dictionaries using conflict-safe DAO inserts.
+        """
         TrackerTypeDAO.bulk_insert_tracker_types(ReferenceDataService._distinct_values(df, "tracker_type"))
         TrackerSourceDAO.bulk_insert_tracker_sources([source_name])
         TrackerCategoryDAO.bulk_insert_tracker_categories(ReferenceDataService._distinct_values(df, "consent_category"))
@@ -49,6 +82,9 @@ class ReferenceDataService:
 
     @staticmethod
     def ensure_tracking_domains(df: pd.DataFrame, vendor_map: dict[str, int]):
+        """
+        Inserts/ensures tracking-domain rows from distinct (domain, vendor) pairs.
+        """
         rows = []
         distinct = df[["tracking_domain", "vendor_name"]].drop_duplicates()
 
@@ -64,6 +100,9 @@ class ReferenceDataService:
 
     @staticmethod
     def build_reference_maps(df: pd.DataFrame, source_name: str, cmp_name: str) -> ReferenceMaps:
+        """
+        Runs reference bootstrap and returns all lookup maps needed downstream.
+        """
         ReferenceDataService.ensure_lookups(df, source_name, cmp_name)
 
         vendor_map = VendorDAO.get_vendors()

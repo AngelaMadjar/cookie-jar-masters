@@ -7,6 +7,16 @@ bp = Blueprint("db", __name__, url_prefix="/db")
 
 @bp.post("/populate/trackers")
 def populate_trackers():
+    """
+    Seeds tracker-related tables from one or more CSV files.
+
+    Optional JSON payload:
+    - csv_paths: list[str]
+
+    The endpoint invokes seeding with these two default files:
+    - data/seed/Master Cookie list & purposes (Global) - Jan 24(1P cookies) - Final.csv
+    - data/seed/Master Cookie list & purposes (Global) - Jan 24(3P cookies) - Final.csv
+    """
     try:
         payload = request.get_json(silent=True) or {}
         csv_paths = payload.get("csv_paths")
@@ -24,6 +34,15 @@ def populate_trackers():
 
 @bp.post("/populate/cmp")
 def populate_cmp():
+    """
+    Seeds CMP translation mapping tables from one or more CSV files.
+
+    Optional JSON payload:
+    - cmp_mappings_paths: list[str]
+
+    The endpoint invokes seeding with:
+    - data/seed/cmp_domain_locale_mapping(Locales).csv
+    """
     try:
         payload = request.get_json(silent=True) or {}
         cmp_mappings_paths = payload.get("cmp_mappings_paths")
@@ -38,6 +57,9 @@ def populate_cmp():
 
 @bp.post("/empty")
 def empty_all():
+    """
+    Deletes all rows across tracker/vendor/CMP-related tables.
+    """
     try:
         result = CleanupService.empty_all()
         return jsonify(result), 200
@@ -47,6 +69,9 @@ def empty_all():
 
 @bp.post("/trackers/empty")
 def empty_trackers():
+    """
+    Deletes tracker-side data while leaving other domains untouched.
+    """
     try:
         result = CleanupService.empty_trackers_only()
         return jsonify(result), 200
@@ -56,6 +81,9 @@ def empty_trackers():
 
 @bp.post("/vendors/empty")
 def empty_vendors():
+    """
+    Deletes vendor-side data while leaving other domains untouched.
+    """
     try:
         result = CleanupService.empty_vendors_only()
         return jsonify(result), 200

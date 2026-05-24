@@ -6,8 +6,21 @@ from app.models.vendor.vendor import Vendor
 
 
 class VendorDAO:
+    """
+        Data Access Object for vendor master records.
+
+        This DAO manages insert, lookup, listing, and maintenance operations for
+        Vendor rows, including helpers used by ingestion and reporting flows.
+    """
+
     @staticmethod
     def bulk_insert_vendors(vendor_names: list[str]):
+        """
+        Inserts vendor names in bulk.
+
+        Null values are ignored. Existing rows are preserved via ON CONFLICT
+        DO NOTHING on the unique vendor_name key.
+        """
         rows = [{"vendor_name": v} for v in vendor_names if v is not None]
         if not rows:
             return
@@ -17,14 +30,28 @@ class VendorDAO:
 
     @staticmethod
     def get_vendors():
+        """
+        Returns all vendors as a lookup map.
+
+        Output format:
+            {vendor_name: vendor_id}
+        """
         return {v.vendor_name: v.vendor_id for v in Vendor.query.all()}
     
     @staticmethod
     def get_by_id(vendor_id: int) -> Optional[Vendor]:
+        """
+        Returns a vendor entity by primary key, or None if not found.
+        """
         return db.session.get(Vendor, vendor_id)
 
     @staticmethod
     def touch_last_modified(vendor_id: int, ts):
+        """
+        Updates only the last_modified timestamp for a vendor row.
+
+        Note: this method executes the update but does not commit.
+        """
         db.session.execute(
             update(Vendor)
             .where(Vendor.vendor_id == vendor_id)
@@ -33,13 +60,16 @@ class VendorDAO:
 
     @staticmethod
     def delete_all():
+        """
+        Deletes all vendor rows and commits the transaction.
+        """
         Vendor.query.delete(synchronize_session=False)
         db.session.commit()
 
     @staticmethod
     def list_vendors(limit: int = 500) -> list[dict]:
         """
-        Returns vendors with their CURRENT description (if any).
+        Returns a flattened vendor view with current description (if any).
         """
         from app.models.vendor.vendor_descriptions import VendorDescriptions
         from app.models.vendor.vendor_description import VendorDescription
@@ -76,10 +106,16 @@ class VendorDAO:
 
     @staticmethod
     def count_vendors() -> int:
+        """
+        Returns the total number of vendor rows.
+        """
         return int(db.session.query(func.count(Vendor.vendor_id)).scalar() or 0)
 
     @staticmethod
     def get_sample_vendor_id():
+        """
+        Returns the smallest vendor_id in the table, or None if empty.
+        """
         return (
             db.session.query(Vendor.vendor_id)
             .order_by(Vendor.vendor_id)

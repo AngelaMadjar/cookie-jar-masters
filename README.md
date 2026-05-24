@@ -1,155 +1,114 @@
-# Tracker Scan Ingestion Benchmark
+# Cookie Jar Masters
 
-## Project Summary
+Cookie Jar Masters is a file-ingestion benchmark project built around a real digital-marketing use case.  
+It tests how a tracker-processing service behaves under controlled burst load as workload shape and file size change.
 
-This sub-project is a benchmarking study inspired by a real digital marketing client system. Its business goal is **GDPR transparency**: websites must show users not only an "accept cookies" option, but also detailed tracker and vendor information about what data is collected and why.
+## Project Context (Business + Research)
 
-In the real workflow, the CMP provider **TrustArc** sends monthly tracker scan files for 80 client domains. These scans contain trackers without full metadata required by GDPR (description, category, translations, etc). The system cross-references scan trackers against a preseeded internal database:
+This project is inspired by a GDPR transparency workflow. In practice, CMP scan files contain trackers detected on websites, and those trackers must be enriched with metadata so website users can review what data is collected.
 
-- If tracker or vendor metadata already exists, it is reused.
-- If a tracker is new, it remains unresolved for manual review in the UI by client staff.
-- Enriched outputs are then returned to TrustArc.
+In the original business process, monthly tracker scans arrive per domain. The ingestion service cross-references scan records against preseeded tracker data:
+- if a tracker already exists, existing metadata is reused,
+- if a tracker is new, it is inserted and can later be manually completed in a UI workflow.
 
-All files and identifiers are anonymized in this class project. Client name tokens were replaced with `CLIENT_X`.
+This class project narrows scope to one technical slice: **ingesting and cross-referencing tracker scan files for performance/scalability benchmarking**.
 
-## What This Class Project Includes
+All client-identifying names in files were anonymized. Any original client token is replaced by `CLIENT_X`.
 
-This class version focuses on one slice of the original platform: **ingestion and cross-referencing performance for 80 scan files**.
+## What the Service Does
 
-### Tech Stack
-- **Backend:** Flask
-- **Database:** PostgreSQL with SQLAlchemy
-- **Load testing:** Locust
-
-### Architecture
-
-The project follows onion-style layering:
-- **models:** Database entities and schema mappings
-- **daos:** Persistence and query logic
-- **services:** Ingestion orchestration, validation, mapping, upsert behavior
-- **routes:** HTTP endpoints
-
-### Main Tested Endpoint
+The main endpoint is:
 
 ```http
 POST /scan/ingest
 ```
 
-One request processes exactly one file path from:
+One request processes exactly one scan file path.  
+At row level:
+- valid rows go through reference resolution and tracker existing/new handling,
+- invalid rows are routed to failed output (row-level failure, not file-level failure).
 
-```text
-data/monthly_tracker_audits/input/2026-02/<file>.csv
-```
+File lifecycle is simple:
+- file starts in `input/`,
+- processed rows are written to `processed/`,
+- failed rows are written to `failed/`,
+- input file is removed after processing.
 
-The endpoint validates and ingests file rows, cross-references or upserts trackers against the database, produces a processing summary, and moves the file through the `input`, `processed`, and `failed` lifecycle folders.
+## Tech Stack and Architecture
+- Backend: Flask
+- Persistence: SQLAlchemy ORM
+- Database: PostgreSQL
+- Schema migrations: Alembic (Flask-Migrate)
+- App server: Gunicorn
 
-## Research Scope and Experiments
+### Code Organization (Onion Style)
+- `models/`: table schema and relationships
+- `daos/`: database operations (queries, inserts, updates, associations)
+- `services/`: business flow and orchestration
+- `routes/`: HTTP API layer and request validation
 
-The research question is whether cloud deployment improves performance and scalability over local execution under burst workload, while also comparing cloud deployment styles.
+### Ingestion Flow (High-Level)
+- `IngestionService`: reads file, normalizes data, splits valid/invalid rows
+- `ReferenceDataService`: resolves and prepares lookup/reference mappings
+- `TrackerUpsertService`: matches existing trackers and inserts missing ones
+- `PurposeService`: creates purpose links when purpose values are present
+- `ReportingService`: builds output frames and count summaries
+- `ScanLifecycleService`: writes processed/failed outputs and finalizes file lifecycle
 
-### Experiments
-- **E1:** Local execution, one request per file path
-- **E2:** Cloud Run HTTP invoker, one request per file path
-- **E3:** Cloud Run event-driven with GCS upload triggers
-- **E4:** Cloud Run + Cloud Tasks with managed dispatch, retry, and backpressure
+## Fixed Variables and Rationale
 
-### Fixed Workload Pressure
+To keep experiments comparable, runtime controls were fixed across test runs:
+- local app concurrency limit: `8`
+- Gunicorn threads: `8` (single worker)
+- SQLAlchemy pool: `pool_size=8`, `max_overflow=0`
+- burst shape: `80` concurrent incoming requests, one file per request
 
-The benchmark uses **80 concurrent incoming requests**, with **one file per request**.
-
-The goal is to compare how each deployment absorbs burst load.
-
-## Deployment Settings
-
-### E1: Local Execution
-
-Implemented settings:
-- App concurrency cap: 8 active requests 
-- Gunicorn: Single worker, threaded handling
-- SQLAlchemy pool: Size 8, `max_overflow=0` 
-- PostgreSQL `max_connections`: 100 
-
-Implication: there are at most 8 in-flight app requests and 8 app database connections. Remaining requests queue.
-
-### E2: Cloud Run HTTP Invoker
-
-### E3: Cloud Run Event-Driven
-
-### E4: Cloud Run + Cloud Tasks
-
-## Workload Design
-
-The workload suite tests sensitivity to file size, composition, and skew.
-
-| Test | Description | Rows per file / shape | Intended composition |
-|---|---|---:|---|
-| T1 | Original real-world baseline | Original files | Real-world baseline |
-| T2 | Medium existing-heavy | 2,000 rows/file | 10% new, 10% failed, 80% existing |
-| T3 | Medium new-heavy | 2,000 rows/file | 80% new, 10% failed, 10% existing |
-| T4 | Large existing-heavy | 20,000 rows/file | 10% new, 10% failed, 80% existing |
-| T5 | Large new-heavy | 20,000 rows/file | 80% new, 10% failed, 10% existing |
-| T6 | Skewed existing-heavy | 79 small files + 1 huge file | 10% new, 10% failed, 80% existing |
-| T7 | Skewed new-heavy | 79 small files + 1 huge file | 80% new, 10% failed, 10% existing |
+Rationale:
+- `workers=1` and `threads=8` were selected empirically for the local benchmark and then held fixed as the baseline for all benchmark runs.
+- This gives bounded parallelism while still producing measurable queue/wait behavior under an 80-request burst.
+- Keeping these values fixed preserves controlled KPI comparison across workload shapes (`T1`-`T7`).
+- Higher thread counts (for example, `10` or `12`) are valid alternatives, but they increase lock-contention noise.
 
 
-## Benchmark Data Generation
+## Data Layout and Ownership
 
-Benchmark workload files are generated by:
+`data/` contains all project datasets and benchmark artifacts.
 
-```text
-scripts/generate_benchmark_workloads.py
-```
+- `data/seed/`  
+  Source-of-truth seed CSVs used to initialize baseline DB state.
 
-### Existing Trackers
+- `data/benchmarks/`  
+  Benchmark case folders (`T1`–`T7`) with:
+  - `input/`: benchmark files used as source workload,
+  - `manifest/`: test-case file lists and expected counts,
+  - `locust_results/`: per-case benchmark outputs (raw + aggregated).
 
-Existing trackers are taken from a seed-only pool of valid tracker keys (/data/seed folder), with about 6.9k unique keys after validation filtering.
+- `data/monthly_tracker_audits/`  
+  Runtime ingestion lifecycle data:
+  - `input/<month>/`: files waiting to be processed,
+  - `processed/<month>/`: processed-row outputs,
+  - `failed/<month>/`: validation-failed-row outputs.
 
-Since medium files have 2k rows, and there are 6.9k unique trackers in seeded data, they enforce unique existing keys within each file. 
-Large (20k rows) and skewed files (79 files with 200 rows and 1 file with 20k rows) allow repeated existing keys within each file to preserve the existing-heavy identity when the unique key pool is insufficient.
+## Scripts Catalog (Project Utilities)
 
-Implication: for large existing-heavy cases, repeated existing keys are unavoidable with finite seed cardinality. This affects runtime behavior and should be disclosed as a limitation or condition of interpretation.
+- `scripts/generate_benchmark_workloads.py`  
+  Used to generate synthetic benchmark datasets (`T2`–`T7`) and manifests from `T1` baseline inputs.
 
-### New Trackers
+- `scripts/anonymize_client_files.py`  
+  Used to replace client-identifying names in file content and file names with `CLIENT_X`.
 
-New trackers are generated as globally unique per test case using the `bench_new_*` pattern.
+- `scripts/remove_scan_purpose_vendor_fields.py`  
+  Used to clear purpose/description fields in scan inputs and keep benchmark focus on tracker cross-referencing behavior.
 
-They are designed not to already exist in the database or in other files.
+## Where to Read Next
 
-### Failed Trackers
+This README is project-level context.
 
-Failed trackers are generated with the `_ga_failed_lookup_marker_*` pattern.
+- For test-case design and generation details  
+  See `TEST_CASES.md` (create/maintain this as the detailed test-case spec).
 
-They are intentionally routed into the validation-failed path.
-
-## KPIs
-
-### Primary Performance KPIs
-
-- Total processing time for 80 files
-- Files/sec throughput
-- Records/sec throughput
-- Queue wait time: `processing_start - request_received`
-- Processing time: `processing_finished - processing_start`
-- End-to-end latency: `response_finished - request_received`
-- p50, p95, and p99 for queue time, processing time, and end-to-end latency where collected
-
-### Control and Validation KPIs
-
-- Created tracker count
-- Existing tracker count
-- Failed row count
-- Requests ok/failed
-- Observed max active processing requests to confirm concurrency cap behavior
-
-## E1 Key Findings So Far
-
-- Concurrency control works: observed max active processing requests is 8.
-- T2 vs. T3 medium workloads show clear workload-type separation.
-- T4 vs. T5 large workloads show meaningful separation.
-- Skewed cases T6 and T7 are straggler-dominated - one huge file drives total runtime.
-- In skewed comparisons, behavior can invert relative to medium and large non-skewed trends because the single-huge-file critical path dominates.
-
-## Interpretation Notes and Limitations
-
-- Large existing-heavy workloads may include repeated existing keys because the seed pool has finite cardinality.
-- Intended workload ratios and realized runtime counts may differ due to validation, deduplication, and mapping behavior in the service layer.
+- For measured KPIs details
+  See `KPIS.md`
+  
+- For experiment definitions, setup, and interpretation  
+  See `EXPERIMENTS.md` (create/maintain this as the detailed experiment spec).

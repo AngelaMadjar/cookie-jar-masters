@@ -8,20 +8,42 @@ from google.cloud import storage
 
 
 class ScanLifecycleService:
+    """
+    Lifecycle service for scan-file ingestion artifacts.
+
+    e1-local branch behavior:
+    - files are read from monthly local input folders
+    - processed/failed CSVs are written to monthly local output folders
+    - consumed input files are removed from local filesystem
+
+    e2-cloudrun-http branch behavior:
+    - input scans are read from GCS objects (gs:// URIs)
+    - processed/failed CSVs are uploaded to GCS output prefixes
+    - consumed source objects are deleted from GCS input prefix
+
+    Row-level semantics are unchanged:
+    - validation failures are row-level (not file-level)
+    - one source file can yield both processed and failed outputs
+    """
+
     BASE_DIR = Path("data/monthly_tracker_audits")
     BENCHMARKS_DIR = Path("data/benchmarks")
     _storage_client: storage.Client | None = None
 
     @staticmethod
     def storage_client() -> storage.Client:
-        # E2 adjustment: lifecycle operations now run against GCS instead of local monthly folders.
+        """
+        Returns a cached Google Cloud Storage client instance.
+        """
         if ScanLifecycleService._storage_client is None:
             ScanLifecycleService._storage_client = storage.Client()
         return ScanLifecycleService._storage_client
 
     @staticmethod
     def parse_gs_uri(gs_uri: str) -> tuple[str, str]:
-        # E2 adjustment: helper introduced to replace Path-based local parsing with gs:// parsing.
+        """
+        Parse a gs:// URI into (bucket_name, blob_name).
+        """
         if not gs_uri.startswith("gs://"):
             raise ValueError(f"Expected gs:// path, got: {gs_uri}")
         path = gs_uri[len("gs://"):]
@@ -32,7 +54,11 @@ class ScanLifecycleService:
 
     @staticmethod
     def read_csv_from_gcs(gs_uri: str) -> pd.DataFrame:
-        # E2 adjustment: helper introduced to replace local pd.read_csv(file_path) with GCS object reads.
+        """
+        Download a CSV from GCS and parse it with encoding fallback.
+
+        Tries utf-8-sig first, then latin-1.
+        """
         bucket_name, blob_name = ScanLifecycleService.parse_gs_uri(gs_uri)
         blob = ScanLifecycleService.storage_client().bucket(bucket_name).blob(blob_name)
         payload = blob.download_as_bytes()
@@ -46,18 +72,32 @@ class ScanLifecycleService:
 
     @staticmethod
     def month_input_dir(month: str) -> Path:
+        """
+        Returns monthly local input folder path.
+
+        Kept for local utilities (for example benchmark staging helpers).
+        """
         return ScanLifecycleService.BASE_DIR / "input" / month
 
     @staticmethod
     def month_processed_dir(month: str) -> Path:
+        """
+        Returns monthly local processed folder path.
+        """
         return ScanLifecycleService.BASE_DIR / "processed" / month
 
     @staticmethod
     def month_failed_dir(month: str) -> Path:
+        """
+        Returns monthly local failed folder path.
+        """
         return ScanLifecycleService.BASE_DIR / "failed" / month
 
     @staticmethod
     def list_input_files(month: str) -> list[Path]:
+        """
+        Lists CSV files currently present in local monthly input folder.
+        """
         in_dir = ScanLifecycleService.month_input_dir(month)
         if not in_dir.exists():
             return []
@@ -65,6 +105,10 @@ class ScanLifecycleService:
 
     @staticmethod
     def clear_month_csvs(month: str):
+        """
+        Ensure local monthly folders exist, then remove local CSV files from
+        input/processed/failed folders.
+        """
         dirs = [
             ScanLifecycleService.month_input_dir(month),
             ScanLifecycleService.month_processed_dir(month),
@@ -77,6 +121,12 @@ class ScanLifecycleService:
 
     @staticmethod
     def stage_workload_input(month: str, workload: str) -> int:
+        """
+        Copy benchmark workload CSV files into local monthly input folder.
+
+        This helper is used for local benchmark staging flow and is not part of
+        GCS ingest request handling.
+        """
         source_dir = ScanLifecycleService.BENCHMARKS_DIR / workload / "input" / month
         if not source_dir.exists():
             raise FileNotFoundError(f"Workload input folder not found: {source_dir}")
@@ -95,8 +145,15 @@ class ScanLifecycleService:
 
     @staticmethod
     def persist_results(month: str, source_file_gs_uri: str, processed_df: pd.DataFrame, failed_df: pd.DataFrame):
-        # E2 adjustment: local file move/write flow is replaced with GCS output + source object delete.
-        # This method is part of the adaptation from local folder lifecycle to GCS object lifecycle.
+        """
+        Persist per-file ingestion outputs in GCS and delete consumed source.
+
+        E2-specific behavior:
+        - source_file_gs_uri must point under monthly_tracker_audits/input/<month>/
+        - non-empty processed_df is uploaded to monthly_tracker_audits/processed/<month>/<filename>
+        - non-empty failed_df is uploaded to monthly_tracker_audits/failed/<month>/<filename>
+        - source object is deleted after output persistence
+        """
         bucket_name, source_blob_name = ScanLifecycleService.parse_gs_uri(source_file_gs_uri)
         source_parts = source_blob_name.split("/")
         filename = source_parts[-1]

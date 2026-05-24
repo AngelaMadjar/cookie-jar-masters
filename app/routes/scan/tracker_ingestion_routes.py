@@ -9,6 +9,26 @@ bp = Blueprint("tracker_ingestion", __name__, url_prefix="/scan")
 
 @bp.post("/ingest")
 def ingest_file():
+    """
+    Ingest exactly one scan file and return per-file KPI summary.
+
+    Expected JSON payload:
+    - file_path: source file path/URI
+    - test_case: benchmark case label (for example T1-T7)
+    - run_id: benchmark run identifier
+    - month: workload month folder (default: "2026-02")
+
+    Shared validation:
+    - Reject missing/invalid required fields with 400.
+
+    Branch difference:
+    - E1 validates local filesystem paths under monthly input folder.
+    - E2 (this branch) validates GCS URIs and requires file_path under
+      `gs://e2-data/`.
+
+    On success, delegates to TrackerIngestionOrchestrator and returns a JSON
+    summary containing count and timing/concurrency KPIs.
+    """
     request_received_timestamp = datetime.now(timezone.utc)
     payload = request.get_json(silent=True) or {}
     file_path = payload.get("file_path")
@@ -25,7 +45,8 @@ def ingest_file():
     if not month or not isinstance(month, str):
         return jsonify({"error": "bad request", "details": "month is required"}), 400
 
-    # E2 adjustment: local filesystem validation was replaced with strict GCS path validation.
+    # E2-specific path policy: only gs:// URIs under the experiment bucket prefix
+    # are accepted by this route.
     if not file_path.startswith("gs://"):
         return jsonify(
             {

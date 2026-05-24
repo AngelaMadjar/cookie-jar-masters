@@ -1,5 +1,6 @@
 steps:
-  # E3 adaptation: build and deploy a dedicated staging job that uploads benchmark files to runtime input prefix.
+  # E3 adaptation: build and deploy a job that stages benchmark files into the
+  # Eventarc trigger bucket input prefix and aggregates run artifacts.
   - name: gcr.io/cloud-builders/docker
     args:
       - build
@@ -33,4 +34,3 @@ steps:
 
 options:
   logging: CLOUD_LOGGING_ONLY
-

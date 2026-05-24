@@ -34,6 +34,33 @@ steps:
       - --set-env-vars=FLASK_DEBUG=0,DB_USER=postgres,DB_NAME=postgres,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
       - --set-secrets=DB_PASSWORD=cookie-jar-masters-db-password:latest
 
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - cookie-jar-migrate-e3
+      - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-app:$COMMIT_SHA
+      - --region=europe-west1
+      - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
+      - --set-cloudsql-instances=dept-dinl-angela:europe-west1:cookie-jar-masters
+      - --set-env-vars=FLASK_DEBUG=0,FLASK_APP=run.py,DB_USER=postgres,DB_NAME=postgres,CLOUD_SQL_CONNECTION_NAME=dept-dinl-angela:europe-west1:cookie-jar-masters
+      - --set-secrets=DB_PASSWORD=cookie-jar-masters-db-password:latest
+      - --command=python3
+      - --args=-m,flask,db,upgrade
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - execute
+      - cookie-jar-migrate-e3
+      - --region=europe-west1
+      - --wait
+
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:

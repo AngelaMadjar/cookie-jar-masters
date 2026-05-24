@@ -161,8 +161,8 @@ class TrackerIngestionOrchestrator:
             processing_start = TrackerIngestionOrchestrator._now_utc()
 
             result = TrackerIngestionOrchestrator.ingest_file(file_path)
-            # E2-specific behavior: persist processed/failed outputs to GCS and
-            # delete consumed input object from the monthly input prefix.
+            # E2/E3 behavior: persist processed/failed outputs to GCS and
+            # delete consumed source object from the trigger/input source path.
             ScanLifecycleService.persist_results(
                 month=month,
                 source_file_gs_uri=file_path,

@@ -9,8 +9,9 @@ from app.services.tracker_ingestion.scan_lifecycle_service import ScanLifecycleS
 
 bp = Blueprint("tracker_ingestion", __name__, url_prefix="/scan")
 
-# E3 adaptation: use the monthly-audit bucket as runtime and results storage for E3 runs.
-E3_RUNTIME_BUCKET = "e3-data-monthly-audit-trackers"
+# E3 adaptation:
+# - source input objects are in trigger bucket: gs://e3-data-benchmarks/<test_case>/input/...
+# - per-attempt raw KPI artifacts are written to: gs://e3-data-monthly-audit-trackers/results/...
 E3_RESULTS_BUCKET = "e3-data-monthly-audit-trackers"
 
 

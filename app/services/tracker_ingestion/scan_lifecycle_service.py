@@ -23,10 +23,11 @@ class ScanLifecycleService:
 
     e3-cloudrun-eventdriven branch behavior:
     - scans are finalized objects in a dedicated trigger bucket
-      (e3-data-benchmarks) watched by Eventarc, copied into /input
-      folder in e3-data-monthly-audit-trackers
-    - input/ processed/failed outputs are written to a separate 
-      runtime/results bucket (e3-data-monthly-audit-trackers)
+      (e3-data-benchmarks) watched by Eventarc
+    - unlike e1/e2 local layout, E3 does not use
+      e3-data-monthly-audit-trackers/input as source input
+    - processed/failed outputs are written to
+      e3-data-monthly-audit-trackers/{processed|failed}/<month>/
     - consumed source objects are deleted after outputs are persisted
 
     Why e3 splits input and output buckets:

@@ -26,7 +26,7 @@ E3 benchmark staging and aggregation runner.
 
 This utility orchestrates one event-driven benchmark run by:
 1. resetting and reseeding the database via app endpoints,
-2. clearing runtime and trigger input prefixes,
+2. clearing runtime output and trigger input prefixes,
 3. copying selected benchmark files into the Eventarc trigger bucket,
 4. waiting for asynchronous processing completion,
 5. reading per-attempt raw records,
@@ -46,6 +46,7 @@ gcloud run jobs execute cookie-jar-upload-benchmarks-e3 \
   --args="^|^tools/upload-benchmarks/run_upload_benchmarks.py|--host=https://cookie-jar-app-e2-656924888958.europe-west1.run.app|--test-case=T1"
 """
 
+# E3 adaptation: runtime output and results artifacts live here.
 RUNTIME_BUCKET = "e3-data-monthly-audit-trackers"
 SOURCE_BENCHMARK_BUCKET = "e2-data" # benchmark source-of-truth remains in e2-data/benchmarks/<test_case_folder>/.
 SOURCE_BENCHMARK_ROOT_PREFIX = "benchmarks" # uploads into this bucket/prefix are the event source for E3 ingestion.
@@ -300,9 +301,16 @@ def reset_and_seed_db(host: str):
 
 
 def clear_runtime_prefixes(month: str):
-    """Clear runtime monthly input/processed/failed prefixes in GCS."""
-    print("Step 2/6: Clear runtime input/processed/failed prefixes")
-    for prefix in (f"input/{month}/", f"processed/{month}/", f"failed/{month}/"):
+    """
+    Clear runtime monthly output prefixes in GCS.
+
+    E3 note:
+    - source input for event ingestion is in trigger bucket
+      gs://e3-data-benchmarks/<test_case>/input/
+    - monthly runtime bucket is used for processed/failed outputs and results
+    """
+    print("Step 2/6: Clear runtime processed/failed prefixes")
+    for prefix in (f"processed/{month}/", f"failed/{month}/"):
         deleted = delete_prefix(RUNTIME_BUCKET, prefix)
         print(f"  Cleared {deleted} objects from gs://{RUNTIME_BUCKET}/{prefix}")
 

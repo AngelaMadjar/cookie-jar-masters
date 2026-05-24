@@ -20,8 +20,8 @@ from app.daos.cmp.cmp_dao import CmpDAO
 
 class CleanupService:
     """
-    Deletes rows from all tables in a safe order (children first, then parents)
-    to avoid Foreign Key constraint errors.
+        Deletes rows from all tables in a safe order (children first, then parents)
+        to avoid Foreign Key constraint errors.
     """
 
     @staticmethod

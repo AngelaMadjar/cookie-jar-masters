@@ -21,17 +21,40 @@ try:
 except Exception:  # pragma: no cover
     monitoring_v3 = None
 
+"""
+E3 benchmark staging and aggregation runner.
+
+This utility orchestrates one event-driven benchmark run by:
+1. resetting and reseeding the database via app endpoints,
+2. clearing runtime and trigger input prefixes,
+3. copying selected benchmark files into the Eventarc trigger bucket,
+4. waiting for asynchronous processing completion,
+5. reading per-attempt raw records,
+6. aggregating file-level KPI outputs and writing run artifacts to GCS.
+
+It is E3-specific and assumes:
+- trigger bucket: e3-data-benchmarks
+- runtime/results bucket: e3-data-monthly-audit-trackers
+- source benchmark bucket: e2-data/benchmarks
+"""
+
+"""
+Command:
+gcloud run jobs execute cookie-jar-upload-benchmarks-e3 \
+  --region=europe-west1 \
+  --wait \
+  --args="^|^tools/upload-benchmarks/run_upload_benchmarks.py|--host=https://cookie-jar-app-e2-656924888958.europe-west1.run.app|--test-case=T1"
+"""
+
 RUNTIME_BUCKET = "e3-data-monthly-audit-trackers"
-# E3 adaptation: benchmark source-of-truth remains in e2-data/benchmarks/<test_case_folder>/.
-SOURCE_BENCHMARK_BUCKET = "e2-data"
-SOURCE_BENCHMARK_ROOT_PREFIX = "benchmarks"
-# E3 adaptation: uploads into this bucket/prefix are the event source for E3 ingestion.
-TRIGGER_BUCKET = "e3-data-benchmarks"
-# E3 adaptation: run artifacts are written under e3 runtime bucket results/<test_case_folder>/.
+SOURCE_BENCHMARK_BUCKET = "e2-data" # benchmark source-of-truth remains in e2-data/benchmarks/<test_case_folder>/.
+SOURCE_BENCHMARK_ROOT_PREFIX = "benchmarks" # uploads into this bucket/prefix are the event source for E3 ingestion.
+TRIGGER_BUCKET = "e3-data-benchmarks" # run artifacts are written under e3 runtime bucket results/<test_case_folder>/.
 RESULTS_BUCKET = "e3-data-monthly-audit-trackers"
 DEFAULT_MONTH = "2026-02"
 CLOUD_RUN_SERVICE_NAME = os.getenv("CLOUD_RUN_SERVICE_NAME", "cookie-jar-app-e3")
 CLOUD_RUN_REGION = os.getenv("CLOUD_RUN_REGION", "europe-west1")
+
 # E3 adaptation: benchmark bucket folder names are descriptive (T1_original, T2_medium_existing_heavy, ...).
 CASE_FOLDER_BY_ID = {
     "T1": "T1_original",
@@ -52,6 +75,7 @@ READ_RETRY_SLEEP_SEC = 2
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build CLI argument parser for one E3 benchmark run."""
     p = argparse.ArgumentParser(description="Stage E3 benchmark files and collect run artifacts.")
     p.add_argument("--host", default=os.getenv("APP_HOST", ""), help="E3 ingestion app base URL")
     p.add_argument("--test-case", required=True, choices=sorted(set(CASE_FOLDER_BY_ID) | set(CASE_ID_BY_FOLDER)))
@@ -64,10 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _now_utc() -> str:
+    """Return current UTC timestamp in compact run-id friendly format."""
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def resolve_case_identity(test_case_arg: str) -> tuple[str, str]:
+    """Normalize user input test case into `(test_case_id, test_case_folder)`."""
     # E3 adaptation: allow either short test ids or descriptive folder names while keeping a canonical mapping.
     if test_case_arg in CASE_FOLDER_BY_ID:
         return test_case_arg, CASE_FOLDER_BY_ID[test_case_arg]
@@ -77,6 +103,7 @@ def resolve_case_identity(test_case_arg: str) -> tuple[str, str]:
 
 
 def _percentile(values: list[float], p: float) -> float:
+    """Return rounded-index percentile from a numeric list."""
     if not values:
         return 0.0
     ordered = sorted(values)
@@ -85,6 +112,7 @@ def _percentile(values: list[float], p: float) -> float:
 
 
 def _parse_utc_iso(ts: str | None) -> datetime | None:
+    """Parse ISO timestamp into timezone-aware datetime, or None on invalid input."""
     if not ts or not isinstance(ts, str):
         return None
     try:
@@ -93,17 +121,83 @@ def _parse_utc_iso(ts: str | None) -> datetime | None:
         return None
 
 
+def _basename_from_file_path(file_path: str | None) -> str:
+    """Extract filename from a path-like string."""
+    if not file_path or not isinstance(file_path, str):
+        return ""
+    return file_path.rsplit("/", 1)[-1]
+
+
+def _attempt_sort_key(record: dict) -> tuple[str, str, str]:
+    """Build deterministic sort key for per-file attempt ordering."""
+    received = str(record.get("request_received_timestamp") or "")
+    finished = str(record.get("response_finished_timestamp") or "")
+    processing = str(record.get("processing_finished_timestamp") or "")
+    return (received, finished, processing)
+
+
+def _group_records_by_file(records: list[dict]) -> dict[str, list[dict]]:
+    """Group raw attempt records by filename and sort attempts chronologically."""
+    grouped: dict[str, list[dict]] = {}
+    for rec in records:
+        filename = _basename_from_file_path(rec.get("file_path"))
+        if not filename:
+            continue
+        grouped.setdefault(filename, []).append(rec)
+    for filename in list(grouped.keys()):
+        grouped[filename] = sorted(grouped[filename], key=_attempt_sort_key)
+    return grouped
+
+
+def _finalize_file_outcomes(records: list[dict]) -> tuple[list[dict], list[dict], int]:
+    """
+    Convert attempt-level raw records into file-level final outcomes.
+
+    Returns:
+    - final_success_records: one successful terminal record per filename
+    - final_failed_records: one terminal failed record per filename
+    - attempt_failures_transient: failed attempts that later succeeded
+
+    Why this is needed in E3:
+    - Eventarc is at-least-once; one file can have multiple delivery attempts.
+    - For comparability with E1/E2, request success/failure KPIs must be file-level,
+      while transient delivery failures are tracked separately as reliability pressure.
+    """
+    grouped = _group_records_by_file(records)
+    final_success_records: list[dict] = []
+    final_failed_records: list[dict] = []
+    attempt_failures_transient = 0
+
+    for _, attempts in grouped.items():
+        first_success_idx = None
+        for idx, rec in enumerate(attempts):
+            if rec.get("ok") is True:
+                first_success_idx = idx
+                break
+
+        if first_success_idx is not None:
+            attempt_failures_transient += sum(1 for rec in attempts[:first_success_idx] if rec.get("ok") is not True)
+            final_success_records.append(attempts[first_success_idx])
+        else:
+            final_failed_records.append(attempts[-1])
+
+    return final_success_records, final_failed_records, attempt_failures_transient
+
+
 def _gcp_project_id() -> str | None:
+    """Resolve current GCP project id from known environment variable names."""
     return os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT") or os.getenv("GCLOUD_PROJECT")
 
 
 def _to_proto_timestamp(dt: datetime) -> Timestamp:
+    """Convert datetime into protobuf Timestamp."""
     ts = Timestamp()
     ts.FromDatetime(dt)
     return ts
 
 
 def storage_client() -> storage.Client:
+    """Get cached GCS client."""
     global _STORAGE_CLIENT
     if _STORAGE_CLIENT is None:
         _STORAGE_CLIENT = storage.Client()
@@ -111,6 +205,7 @@ def storage_client() -> storage.Client:
 
 
 def monitoring_client():
+    """Get cached Cloud Monitoring client when available, otherwise None."""
     global _MONITORING_CLIENT
     if monitoring_v3 is None:
         return None
@@ -120,6 +215,7 @@ def monitoring_client():
 
 
 def parse_gs_uri(gs_uri: str) -> tuple[str, str]:
+    """Parse `gs://bucket/blob` into `(bucket, blob)`."""
     if not gs_uri.startswith("gs://"):
         raise ValueError(f"Expected gs:// path, got: {gs_uri}")
     raw = gs_uri[len("gs://") :]
@@ -130,24 +226,29 @@ def parse_gs_uri(gs_uri: str) -> tuple[str, str]:
 
 
 def download_text_gs(gs_uri: str) -> str:
+    """Download text content from a GCS URI."""
     bucket_name, blob_name = parse_gs_uri(gs_uri)
     return storage_client().bucket(bucket_name).blob(blob_name).download_as_text()
 
 
 def upload_text_gs(gs_uri: str, content: str, content_type: str):
+    """Upload text content to a GCS URI with the provided content type."""
     bucket_name, blob_name = parse_gs_uri(gs_uri)
     storage_client().bucket(bucket_name).blob(blob_name).upload_from_string(content, content_type=content_type)
 
 
 def list_blobs(bucket_name: str, prefix: str):
+    """List GCS blobs for a bucket/prefix."""
     return storage_client().list_blobs(bucket_name, prefix=prefix)
 
 
 def count_blobs(bucket_name: str, prefix: str) -> int:
+    """Count blobs under a bucket/prefix."""
     return sum(1 for _ in list_blobs(bucket_name, prefix))
 
 
 def delete_prefix(bucket_name: str, prefix: str) -> int:
+    """Delete all blobs under a bucket/prefix and return deleted count."""
     deleted = 0
     bucket = storage_client().bucket(bucket_name)
     for blob in list_blobs(bucket_name, prefix):
@@ -157,6 +258,7 @@ def delete_prefix(bucket_name: str, prefix: str) -> int:
 
 
 def _cloud_run_id_token(audience: str) -> str:
+    """Fetch and cache an ID token for calling private Cloud Run endpoints."""
     cached = _ID_TOKEN_CACHE.get(audience)
     if cached:
         return cached
@@ -172,11 +274,13 @@ def _cloud_run_id_token(audience: str) -> str:
 
 
 def _cloud_run_auth_headers(host: str) -> dict[str, str]:
+    """Build Authorization headers for private Cloud Run HTTP calls."""
     token = _cloud_run_id_token(host.rstrip("/"))
     return {"Authorization": f"Bearer {token}"}
 
 
 def _post_ok(host: str, endpoint: str, payload: dict):
+    """POST JSON to app endpoint and raise on non-200 response."""
     resp = requests.post(
         f"{host}{endpoint}",
         json=payload,
@@ -188,6 +292,7 @@ def _post_ok(host: str, endpoint: str, payload: dict):
 
 
 def reset_and_seed_db(host: str):
+    """Reset and reseed DB state through app endpoints."""
     print("Step 1/6: Reset and reseed DB")
     _post_ok(host, "/db/empty", {})
     _post_ok(host, "/db/populate/cmp", {})
@@ -195,6 +300,7 @@ def reset_and_seed_db(host: str):
 
 
 def clear_runtime_prefixes(month: str):
+    """Clear runtime monthly input/processed/failed prefixes in GCS."""
     print("Step 2/6: Clear runtime input/processed/failed prefixes")
     for prefix in (f"input/{month}/", f"processed/{month}/", f"failed/{month}/"):
         deleted = delete_prefix(RUNTIME_BUCKET, prefix)
@@ -202,6 +308,7 @@ def clear_runtime_prefixes(month: str):
 
 
 def clear_trigger_input_prefix(test_case_folder: str):
+    """Clear trigger bucket input prefix for one test case."""
     # E3 adaptation: remove prior staged files so one upload job execution represents one clean benchmark run.
     trigger_prefix = f"{test_case_folder}/input/"
     deleted = delete_prefix(TRIGGER_BUCKET, trigger_prefix)
@@ -209,6 +316,12 @@ def clear_trigger_input_prefix(test_case_folder: str):
 
 
 def stage_files(test_case_id: str, test_case_folder: str, run_id: str, month: str, total_files: int) -> list[str]:
+    """
+    Copy benchmark source CSV files into the trigger bucket input prefix.
+
+    Uploaded objects include metadata needed by `/scan/ingest` normalization.
+    Returns staged `gs://...` file paths.
+    """
     print("Step 3/6: Copy test-case inputs from e2 benchmark bucket to e3 trigger bucket")
     source_prefix = f"{SOURCE_BENCHMARK_ROOT_PREFIX}/{test_case_folder}/input/"
     source_blobs = [b for b in list_blobs(SOURCE_BENCHMARK_BUCKET, source_prefix) if b.name.endswith(".csv")]
@@ -226,6 +339,9 @@ def stage_files(test_case_id: str, test_case_folder: str, run_id: str, month: st
     for src_blob in selected:
         filename = src_blob.name.rsplit("/", 1)[-1]
         dst_blob_name = f"{test_case_folder}/input/{filename}"
+        # E3 adaptation: copy source benchmark files into an explicit input/
+        # prefix so runtime flow mirrors the local lifecycle semantics where
+        # ingestion consumes from input and transitions files to processed/failed.
         # E3 adaptation: upload destination objects with metadata in the same write operation so finalize events carry run identity without patch races.
         payload = src_blob.download_as_bytes()
         target_blob = dst_bucket.blob(dst_blob_name)
@@ -250,37 +366,43 @@ def wait_until_complete(
     timeout_sec: int,
     poll_interval_sec: int,
 ):
+    """
+    Poll asynchronous completion until all staged files are successfully processed.
+
+    Completion condition:
+    - trigger input prefix is empty, and
+    - final successful file outcomes reach staged file count.
+    """
     print("Step 4/6: Wait for event-driven processing completion")
     start = time.time()
     raw_prefix = f"results/{test_case_folder}/raw/{run_id}/"
     trigger_prefix = f"{test_case_folder}/input/"
-    completion_confirmations = 0
     while True:
         input_remaining = count_blobs(TRIGGER_BUCKET, trigger_prefix)
         raw_records_count = count_blobs(RESULTS_BUCKET, raw_prefix)
+        records = read_run_records(test_case_folder, run_id)
+        final_success_records, _, _ = _finalize_file_outcomes(records)
+        final_success_files = len(final_success_records)
         elapsed = int(time.time() - start)
         print(
-            f"  elapsed={elapsed}s input_remaining={input_remaining} raw_records={raw_records_count}/{staged_count}"
+            f"  elapsed={elapsed}s input_remaining={input_remaining} raw_records={raw_records_count} final_success_files={final_success_files}/{staged_count}"
         )
 
-        # E3 adaptation: input files are intentionally retained in trigger bucket; completion is defined by observed raw records.
-        if raw_records_count >= staged_count:
-            completion_confirmations += 1
-            # E3 adaptation: require consecutive confirmations to avoid listing/downloading raw blobs during write races.
-            if completion_confirmations >= 2:
-                return
-        else:
-            completion_confirmations = 0
+        # E3 adaptation: run is complete only when all input work units are
+        # consumed and we have one successful final outcome per staged file.
+        if input_remaining == 0 and final_success_files >= staged_count:
+            return
 
         if elapsed >= timeout_sec:
             raise TimeoutError(
                 "Timed out waiting for processing completion "
-                f"(input_remaining={input_remaining}, raw_records={raw_records_count}, staged={staged_count})"
+                f"(input_remaining={input_remaining}, raw_records={raw_records_count}, final_success_files={final_success_files}, staged={staged_count})"
             )
         time.sleep(max(1, poll_interval_sec))
 
 
 def _download_blob_text_with_retry(bucket_name: str, blob_name: str) -> str:
+    """Download GCS object text with retry to tolerate transient listing/read races."""
     # E3 adaptation: raw blob generations can be replaced by duplicate event retries, so re-read latest object on transient 404.
     last_exc: Exception | None = None
     for attempt in range(1, READ_RETRY_ATTEMPTS + 1):
@@ -297,6 +419,7 @@ def _download_blob_text_with_retry(bucket_name: str, blob_name: str) -> str:
 
 
 def read_run_records(test_case_folder: str, run_id: str) -> list[dict]:
+    """Read all raw JSON attempt records for one run from GCS."""
     prefix = f"results/{test_case_folder}/raw/{run_id}/"
     records = []
     blob_names = sorted(
@@ -309,6 +432,10 @@ def read_run_records(test_case_folder: str, run_id: str) -> list[dict]:
 
 
 def cloud_run_max_active_instances_observed(records: list[dict]) -> int | None:
+    """
+    Query Cloud Monitoring and return max active Cloud Run instances observed
+    during the run time window.
+    """
     if monitoring_v3 is None:
         return None
 
@@ -369,7 +496,15 @@ def cloud_run_max_active_instances_observed(records: list[dict]) -> int | None:
 
 
 def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -> dict:
-    ok_records = [r for r in records if r.get("ok")]
+    """
+    Aggregate attempt-level raw records into file-level benchmark KPIs.
+
+    Includes E3 reliability KPIs:
+    - files_succeeded_final
+    - files_failed_final
+    - attempt_failures_transient
+    """
+    ok_records, final_failed_records, attempt_failures_transient = _finalize_file_outcomes(records)
 
     queue_wait = [float(r.get("queue_wait_time_sec", 0) or 0) for r in ok_records]
     processing = [float(r.get("processing_time_sec", 0) or 0) for r in ok_records]
@@ -386,6 +521,7 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -
         makespan_sec = sum(e2e)
 
     files_count = len(ok_records)
+    files_failed_final = len(final_failed_records)
     records_count = int(sum(int(r.get("processed_rows", 0) or 0) + int(r.get("failed_rows", 0) or 0) for r in ok_records))
     created_total = int(sum(int(r.get("created_trackers", 0) or 0) for r in ok_records))
     existing_total = int(sum(int(r.get("existing_trackers", 0) or 0) for r in ok_records))
@@ -395,16 +531,21 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -
 
     files_per_sec = (files_count / makespan_sec) if makespan_sec > 0 else 0.0
     records_per_sec = (records_count / makespan_sec) if makespan_sec > 0 else 0.0
-    failed_requests = len(records) - files_count
+    # E3 reliability KPIs:
+    # - files_succeeded_final: unique files that reached successful completion
+    # - files_failed_final: unique files without successful completion at run end
+    # - attempt_failures_transient: failed attempts that later succeeded
+    # These are added because Eventarc can deliver multiple attempts per file.
+    files_succeeded_final = files_count
 
     return {
         "run_id": run_id,
         "test_case": test_case_id,
         "repeat_index": 1,
-        "locust_exit_code": 0 if failed_requests == 0 else 1,
-        "requests_total": len(records),
-        "requests_ok": files_count,
-        "requests_failed": failed_requests,
+        "locust_exit_code": 0 if files_failed_final == 0 else 1,
+        "requests_total": files_succeeded_final + files_failed_final,
+        "requests_ok": files_succeeded_final,
+        "requests_failed": files_failed_final,
         "total_processing_time_sec": round(makespan_sec, 6),
         "files_per_sec": round(files_per_sec, 6),
         "records_per_sec": round(records_per_sec, 6),
@@ -418,10 +559,14 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -
         "max_active_processing_requests_observed": int(max(active_parallel) if active_parallel else 0),
         "max_active_requests_seen_observed": int(max(max_active_seen) if max_active_seen else 0),
         "cloud_run_max_active_instances_observed": cloud_run_max_active_instances_observed(records),
+        "files_succeeded_final": files_succeeded_final,
+        "files_failed_final": files_failed_final,
+        "attempt_failures_transient": attempt_failures_transient,
     }
 
 
 def write_outputs(test_case_folder: str, run_id: str, month: str, records: list[dict], run_row: dict):
+    """Write raw run bundle JSON and aggregated CSV row artifacts to GCS."""
     print("Step 5/6: Write run artifacts")
     raw_bundle_uri = f"gs://{RESULTS_BUCKET}/results/{test_case_folder}/raw/{run_id}.json"
     upload_text_gs(
@@ -452,6 +597,7 @@ def write_outputs(test_case_folder: str, run_id: str, month: str, records: list[
 
 
 def main():
+    """CLI entrypoint for one end-to-end E3 benchmark run."""
     args = build_parser().parse_args()
     if not args.host:
         raise ValueError("--host is required (or set APP_HOST env var)")

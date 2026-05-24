@@ -9,9 +9,19 @@ from app.daos.tracker.tracker_cmp_dao import TrackerCmpDAO
 from app.daos.tracker.tracker_dao import TrackerDAO
 from app.services.tracker_ingestion.reference_data_service import ReferenceMaps
 
+# Tracker ingestion service flow:
+# IngestionService (ValidationService) -> ReferenceDataService -> TrackerUpsertService -> PurposeService -> ReportingService -> ScanLifecycleService
 
 @dataclass
 class UpsertResult:
+    """
+    Result payload from tracker upsert execution.
+
+    - tracker_map: tracker identity key -> tracker_id for existing and inserted
+    - new_tracker_ids: set of tracker IDs created in this run
+    - created_count: number of newly created trackers
+    - existing_count: number of rows resolved to already-existing trackers
+    """
     tracker_map: dict[tuple[str, int, int], int]
     new_tracker_ids: set[int]
     created_count: int
@@ -19,8 +29,21 @@ class UpsertResult:
 
 
 class TrackerUpsertService:
+    """
+    Resolves ingestion rows into tracker records using upsert-like logic.
+
+    Identity key used for matching/insertion:
+        (tracker_name, tracker_type_id, tracking_domain_id)
+
+    Existing keys are reused; missing keys are inserted. CMP links are ensured
+    for both existing and newly created trackers.
+    """
+
     @staticmethod
     def _now_utc():
+        """
+        Returns the current UTC timestamp.
+        """
         return datetime.now(timezone.utc)
 
     @staticmethod
@@ -30,6 +53,26 @@ class TrackerUpsertService:
         cmp_name: str,
         source_name: str,
     ) -> UpsertResult:
+        """
+        Upserts tracker records from normalized ingestion rows.
+
+        Flow:
+        1. Resolve FK IDs for each row from ReferenceMaps.
+        2. Build candidate tracker identity keys.
+        3. Detection step: query DB once for those keys to build an
+           existing-key -> tracker_id map.
+        4. Row-handling step for keys found in that map:
+           - count as existing
+           - ensure tracker<->cmp link exists
+        5. Row-handling step for keys not found in that map:
+           - prepare insert rows
+           - bulk insert trackers
+           - reload inserted IDs by key
+           - bulk link new trackers to cmp
+
+        Returns UpsertResult with combined tracker_map and created/existing
+        counters used by downstream services and reporting.
+        """
         cmp_id = refs.cmps.get(cmp_name)
         source_id = refs.tracker_sources.get(source_name)
 

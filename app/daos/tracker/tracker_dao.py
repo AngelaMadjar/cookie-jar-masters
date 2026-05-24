@@ -12,14 +12,28 @@ from typing import Optional
 
 
 class TrackerDAO:
+    """
+        Data Access Object for core tracker records.
+
+        This DAO encapsulates insert, lookup, listing, and maintenance operations
+        for Tracker rows, using the tracker identity key:
+            (tracker_name, tracker_type_id, tracking_domain_id)
+    """
+
     TRACKER_KEY_QUERY_CHUNK_SIZE = 5000
 
     @staticmethod
     def bulk_insert_trackers(trackers: list[dict]):
         """
-        trackers rows must include:
-        tracker_name, tracker_type_id, tracking_domain_id, tracker_category_id,
-        tracker_source_id, vendor_id, tracker_duration, last_modified
+        Inserts tracker rows in bulk.
+
+        Each input row should include:
+            tracker_name, tracker_type_id, tracking_domain_id,
+            tracker_category_id, tracker_source_id, vendor_id,
+            tracker_duration, last_modified
+
+        Existing rows are preserved via ON CONFLICT DO NOTHING on the tracker
+        unique key (tracker_name, tracker_type_id, tracking_domain_id).
         """
         if not trackers:
             return
@@ -33,7 +47,10 @@ class TrackerDAO:
     @staticmethod
     def get_trackers():
         """
-        Returns mapping keyed by (tracker_name, tracker_type_id, tracking_domain_id) -> tracker_id
+        Returns all trackers as a lookup map.
+
+        Output format:
+            {(tracker_name, tracker_type_id, tracking_domain_id): tracker_id}
         """
         return {
             (t.tracker_name, t.tracker_type_id, t.tracking_domain_id): t.tracker_id
@@ -43,8 +60,13 @@ class TrackerDAO:
     @staticmethod
     def get_trackers_by_keys(keys: set[tuple[str, int, int]]):
         """
-        Returns mapping keyed by (tracker_name, tracker_type_id, tracking_domain_id) -> tracker_id
-        for only the provided keys.
+        Returns tracker IDs for the provided identity keys only.
+
+        Output format:
+            {(tracker_name, tracker_type_id, tracking_domain_id): tracker_id}
+
+        Keys are queried in chunks (TRACKER_KEY_QUERY_CHUNK_SIZE) to avoid
+        oversized SQL IN clauses.
         """
         if not keys:
             return {}
@@ -82,10 +104,16 @@ class TrackerDAO:
     
     @staticmethod
     def get_by_id(tracker_id: int) -> Optional[int]:
+        """
+        Returns a tracker entity by primary key, or None if not found.
+        """
         return db.session.get(Tracker, tracker_id)
     
     @staticmethod
     def delete_all():
+        """
+        Deletes all tracker rows and commits the transaction.
+        """
         Tracker.query.delete(synchronize_session=False)
         db.session.commit()
 
@@ -102,6 +130,11 @@ class TrackerDAO:
 
     @staticmethod
     def touch_last_modified(tracker_id: int, ts):
+        """
+        Updates only the last_modified timestamp for a tracker row.
+
+        Note: this method executes the update but does not commit.
+        """
         db.session.execute(
             update(Tracker)
             .where(Tracker.tracker_id == tracker_id)
@@ -110,6 +143,12 @@ class TrackerDAO:
         
     @staticmethod
     def list_trackers(limit: int = 500) -> list[dict]:
+        """
+        Returns a flattened tracker view for inspection/reporting.
+
+        Includes joined fields for domain, category, vendor, type, tracker
+        name, and current purpose (if present), limited by `limit`.
+        """
         q = (
             db.session.query(
                 Tracker.tracker_id.label("tracker_id"),
@@ -148,10 +187,16 @@ class TrackerDAO:
     
     @staticmethod
     def count_trackers() -> int:
+        """
+        Returns the total number of tracker rows.
+        """
         return int(db.session.query(func.count(Tracker.tracker_id)).scalar() or 0)
 
     @staticmethod
     def get_sample_tracker_id():
+        """
+        Returns the smallest tracker_id in the table, or None if empty.
+        """
         return (
             db.session.query(Tracker.tracker_id)
             .order_by(Tracker.tracker_id)

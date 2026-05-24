@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from pathlib import PurePosixPath
 import json
 
 from flask import Blueprint, jsonify, request
@@ -13,47 +12,37 @@ bp = Blueprint("tracker_ingestion", __name__, url_prefix="/scan")
 # E3 adaptation: use the monthly-audit bucket as runtime and results storage for E3 runs.
 E3_RUNTIME_BUCKET = "e3-data-monthly-audit-trackers"
 E3_RESULTS_BUCKET = "e3-data-monthly-audit-trackers"
-DEFAULT_MONTH = "2026-02"
-# E3 adaptation: benchmark bucket uses descriptive case-folder names instead of short ids.
-CASE_FOLDER_BY_ID = {
-    "T1": "T1_original",
-    "T2": "T2_medium_existing_heavy",
-    "T3": "T3_medium_new_heavy",
-    "T4": "T4_large_existing_heavy",
-    "T5": "T5_large_new_heavy",
-    "T6": "T6_skewed_existing_heavy",
-    "T7": "T7_skewed_new_heavy",
-}
-CASE_ID_BY_FOLDER = {folder: case_id for case_id, folder in CASE_FOLDER_BY_ID.items()}
 
 
+def _safe_record_blob_name(test_case_folder: str, run_id: str, file_path: str, attempt_id: str) -> str:
+    """
+    Build the raw record object path for one delivery attempt of one file.
 
-
-def _infer_month_from_object_name(object_name: str) -> str:
-    parts = PurePosixPath(object_name).parts
-    if len(parts) >= 2 and parts[0] == "input":
-        return parts[1]
-    return DEFAULT_MONTH
-
-
-def _benchmark_case_folder(test_case: str, test_case_folder: str | None = None) -> str:
-    # E3 adaptation: allow either short test id (T1..T7) or explicit folder name from event metadata.
-    if test_case_folder:
-        return test_case_folder
-    return CASE_FOLDER_BY_ID.get(test_case, test_case)
-
-
-def _safe_record_blob_name(test_case_folder: str, run_id: str, file_path: str) -> str:
+    Path shape:
+    results/<test_case_folder>/raw/<run_id>/<filename>/<attempt_id>.json
+    """
     filename = file_path.rsplit("/", 1)[-1]
-    return f"results/{test_case_folder}/raw/{run_id}/{filename}.json"
+    # E3 adaptation: persist each delivery attempt as a separate raw artifact so
+    # we can distinguish transient delivery failures from final file outcomes.
+    return f"results/{test_case_folder}/raw/{run_id}/{filename}/{attempt_id}.json"
 
 
-def _write_raw_record(test_case: str, run_id: str, file_path: str, record: dict, test_case_folder: str | None = None):
-    # E3 adaptation: persist per-file processing records under runtime bucket results/<test_case>/raw/.
+def _write_raw_record(test_case_folder: str, run_id: str, file_path: str, attempt_id: str, record: dict):
+    """
+    Persist one attempt-level processing record to GCS as JSON.
+
+    This writes both successful and failed attempts so E3 can compute
+    file-final outcomes separately from transient delivery failures.
+    """
+    # E3 adaptation: persist attempt-level processing records under
+    # results/<test_case>/raw/<run_id>/<filename>/<attempt_id>.json.
+    # This keeps E2-style KPI payload fields per delivery while preserving
+    # retry history needed for E3 reliability metrics.
     blob_name = _safe_record_blob_name(
-        test_case_folder=_benchmark_case_folder(test_case, test_case_folder),
+        test_case_folder=test_case_folder,
         run_id=run_id,
         file_path=file_path,
+        attempt_id=attempt_id,
     )
     bucket = ScanLifecycleService.storage_client().bucket(E3_RESULTS_BUCKET)
     bucket.blob(blob_name).upload_from_string(
@@ -63,6 +52,12 @@ def _write_raw_record(test_case: str, run_id: str, file_path: str, record: dict,
 
 
 def _event_payload_to_file_path(payload: dict) -> tuple[str | None, str | None, dict]:
+    """
+    Extract `gs://bucket/object` and object metadata from Eventarc payload.
+
+    Supports both canonical CloudEvent body shape (`data` object) and
+    legacy direct-data payload shape.
+    """
     event_data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     if not isinstance(event_data, dict):
         return None, None, {}
@@ -75,66 +70,60 @@ def _event_payload_to_file_path(payload: dict) -> tuple[str | None, str | None, 
     return f"gs://{bucket}/{object_name}", object_name, metadata
 
 
-def _event_case_folder_and_run_id(object_name: str) -> tuple[str | None, str | None]:
-    # E3 adaptation: infer test-case folder and run id directly from object path to avoid metadata timing races.
-    parts = PurePosixPath(object_name).parts
-    if len(parts) >= 3 and parts[1] == "input":
-        case_folder = parts[0]
-        run_id = parts[2] if len(parts) >= 4 and str(parts[2]).startswith("run_") else None
-        return case_folder, run_id
-    return None, None
+def _normalize_ingest_payload(payload: dict) -> tuple[dict | None, dict | None, int | None]:
+    """
+    Validate and normalize Eventarc payload into the ingestion contract.
 
-
-def _normalize_ingest_payload(payload: dict) -> tuple[dict | None, bool, dict | None, int | None]:
-    # E3 adaptation: allow the canonical /scan/ingest endpoint to accept both HTTP benchmark payloads and GCS finalize events.
-    file_path = payload.get("file_path")
-    if file_path and isinstance(file_path, str):
-        return (
-            {
-                "file_path": file_path,
-                "test_case": payload.get("test_case"),
-                "test_case_folder": payload.get("test_case_folder"),
-                "run_id": payload.get("run_id"),
-                "month": payload.get("month", DEFAULT_MONTH),
-            },
-            False,
-            None,
-            None,
-        )
-
+    Returns:
+    - normalized payload dict on success
+    - or early response body + status code for ignored/bad requests
+    """
+    # E3 contract: /scan/ingest accepts GCS object-finalized event payloads only.
+    # Like E2, this route still normalizes into the same ingest contract:
+    # file_path + test_case + run_id + month (plus E3 test_case_folder routing).
     file_path, object_name, metadata = _event_payload_to_file_path(payload)
     if not file_path or not object_name:
-        return None, False, {"error": "bad request", "details": "file_path is required"}, 400
+        return (
+            None,
+            {
+                "error": "bad request",
+                "details": "Expected GCS finalize payload with data.bucket and data.name",
+            },
+            400,
+        )
 
-    # E3 adaptation: process only benchmark input object finalizations to avoid loops from results/processed/failed writes.
+    # Double guard (1/2): Eventarc trigger is bucket-level; 
+    # ignore finalized objects that are not benchmark input files.
     if "/input/" not in object_name:
-        return None, True, {"status": "ignored", "file_path": file_path}, 200
-    # E3 adaptation: ignore non-csv objects (for example marker files) on the event path.
+        return None, {"status": "ignored", "reason": "non-input object", "file_path": file_path}, 200
+    # Double guard (2/2): ignore finalized non-CSV objects under input/ to
+    # keep ingest processing limited to expected scan files.
     if not object_name.lower().endswith(".csv"):
-        return None, True, {"status": "ignored", "file_path": file_path}, 200
+        return None, {"status": "ignored", "reason": "non-csv object", "file_path": file_path}, 200
 
-    case_folder_from_path, run_id_from_path = _event_case_folder_and_run_id(object_name)
-    month = str(metadata.get("month") or _infer_month_from_object_name(object_name) or DEFAULT_MONTH)
-    test_case_folder = str(
-        metadata.get("test_case_folder")
-        or case_folder_from_path
-        or _benchmark_case_folder(str(metadata.get("test_case") or "unknown"))
-    )
-    test_case = str(metadata.get("test_case") or CASE_ID_BY_FOLDER.get(test_case_folder, "unknown"))
-    run_id = str(
-        metadata.get("run_id")
-        or run_id_from_path
-        or f"run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
-    )
+    required_metadata_fields = ("test_case", "test_case_folder", "run_id", "month")
+    missing = [
+        key for key in required_metadata_fields
+        if not isinstance(metadata.get(key), str) or not metadata.get(key).strip()
+    ]
+    if missing:
+        return (
+            None,
+            {
+                "error": "bad request",
+                "details": f"Missing required object metadata: {', '.join(missing)}",
+            },
+            400,
+        )
+
     return (
         {
             "file_path": file_path,
-            "test_case": test_case,
-            "test_case_folder": test_case_folder,
-            "run_id": run_id,
-            "month": month,
+            "test_case": metadata["test_case"].strip(),
+            "test_case_folder": metadata["test_case_folder"].strip(),
+            "run_id": metadata["run_id"].strip(),
+            "month": metadata["month"].strip(),
         },
-        True,
         None,
         None,
     )
@@ -142,18 +131,46 @@ def _normalize_ingest_payload(payload: dict) -> tuple[dict | None, bool, dict | 
 
 @bp.post("/ingest")
 def ingest_file():
+    """
+    Event-driven ingestion endpoint.
+
+    Accepts only GCS object-finalized payloads and processes CSV inputs under
+    input/ prefixes. Request-level response is an acknowledgment; detailed
+    per-file KPI records are persisted as JSON under:
+    results/<test_case_folder>/raw/<run_id>/<filename>/<attempt_id>.json
+
+    KPI/timing semantics (aligned with E2):
+    - request_received_timestamp: captured at route entry
+    - processing_start_timestamp: set inside orchestrator before file processing
+    - processing_finished_timestamp: set when business processing finishes
+    - response_finished_timestamp: set just before response return
+    - queue_wait_time_sec, processing_time_sec, end_to_end_latency_sec are
+      computed from the above timestamps in the same way as E2.
+
+    Eventarc delivery model note:
+    - Eventarc is at-least-once delivery, so the same finalized object event
+      may be delivered more than once.
+    - This handler is written to be idempotent for duplicates. After the first
+      successful processing deletes/moves the source object, later duplicate
+      deliveries hit NotFound and are acknowledged as "skipped" (HTTP 200)
+      instead of treated as failures.
+    """
     request_received_timestamp = datetime.now(timezone.utc)
     payload = request.get_json(silent=True) or {}
-    normalized_payload, is_storage_event, early_body, early_status = _normalize_ingest_payload(payload)
+    normalized_payload, early_body, early_status = _normalize_ingest_payload(payload)
     if early_body is not None:
         return jsonify(early_body), int(early_status or 400)
 
     file_path = normalized_payload.get("file_path") if normalized_payload else None
     test_case = normalized_payload.get("test_case") if normalized_payload else None
-    # E3 adaptation: optional folder hint keeps benchmark artifacts in the expected GCS case folder.
     test_case_folder = normalized_payload.get("test_case_folder") if normalized_payload else None
     run_id = normalized_payload.get("run_id") if normalized_payload else None
     month = normalized_payload.get("month") if normalized_payload else None
+    # E3 adaptation: CloudEvent ID is unique per Eventarc delivery attempt and
+    # is used to correlate retries for reliability KPI analysis.
+    attempt_id = (request.headers.get("Ce-Id") or request.headers.get("ce-id") or "").strip()
+    if not attempt_id:
+        attempt_id = datetime.now(timezone.utc).strftime("manual-%Y%m%dT%H%M%S%fZ")
 
     if not file_path or not isinstance(file_path, str):
         return jsonify({"error": "bad request", "details": "file_path is required"}), 400
@@ -173,9 +190,10 @@ def ingest_file():
             request_received_timestamp=request_received_timestamp,
         )
         _write_raw_record(
-            test_case=test_case,
+            test_case_folder=test_case_folder,
             run_id=run_id,
             file_path=file_path,
+            attempt_id=attempt_id,
             record={
                 "file_path": file_path,
                 "status_code": 200,
@@ -183,38 +201,22 @@ def ingest_file():
                 "error": None,
                 **result,
             },
-            test_case_folder=test_case_folder,
         )
-        if is_storage_event:
-            # E3 adaptation: Eventarc callers only need an acknowledgment payload and stable status.
-            return jsonify({"status": "processed", "file_path": file_path, "run_id": run_id}), 200
-        return jsonify(result), 200
+        # Eventarc caller needs stable ack semantics (200 on handled delivery),
+        # while full per-file/per-attempt KPI details are stored in raw records.
+        return jsonify({"status": "processed", "file_path": file_path, "run_id": run_id}), 200
     except NotFound:
-        if is_storage_event:
-            # E3 adaptation: duplicate finalize events are expected, so missing source object is treated as safe skip.
-            return jsonify({"status": "skipped", "reason": "source object not found", "file_path": file_path}), 200
-        _write_raw_record(
-            test_case=test_case,
-            run_id=run_id,
-            file_path=file_path,
-            record={
-                "file_path": file_path,
-                "status_code": 500,
-                "ok": False,
-                "error": "source object not found",
-                "test_case": test_case,
-                "run_id": run_id,
-                "month": month,
-                "request_received_timestamp": request_received_timestamp.isoformat(),
-            },
-            test_case_folder=test_case_folder,
-        )
-        return jsonify({"error": "internal error", "details": "source object not found"}), 500
+        # At-least-once delivery handling:
+        # A duplicate event can arrive after another attempt already consumed
+        # the source object. We acknowledge this duplicate as a no-op skip
+        # (idempotent behavior), which prevents false failures from retries.
+        return jsonify({"status": "skipped", "reason": "source object not found", "file_path": file_path}), 200
     except Exception as exc:
         _write_raw_record(
-            test_case=test_case,
+            test_case_folder=test_case_folder,
             run_id=run_id,
             file_path=file_path,
+            attempt_id=attempt_id,
             record={
                 "file_path": file_path,
                 "status_code": 500,
@@ -225,12 +227,5 @@ def ingest_file():
                 "month": month,
                 "request_received_timestamp": request_received_timestamp.isoformat(),
             },
-            test_case_folder=test_case_folder,
         )
         return jsonify({"error": "internal error", "details": str(exc)}), 500
-
-
-@bp.post("/events/storage-finalized")
-def on_storage_finalized():
-    # E3 adaptation: keep backward-compatible event path while delegating to the canonical /scan/ingest handler.
-    return ingest_file()

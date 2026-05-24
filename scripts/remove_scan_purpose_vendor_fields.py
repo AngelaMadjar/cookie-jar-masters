@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
-from pathlib import Path
-
-import pandas as pd
-
 """
+Sanitize scan CSV files by clearing tracker purpose and vendor description fields.
+
+Project rationale:
+- In real client workflows, some scanned trackers may already include purpose
+  and/or description values.
+- For this project, scope is intentionally narrowed to tracker detection and
+  upsert/insert behavior based on tracker composite identity key and CMP link.
+- To keep experiments focused on that scope, purpose/description fields are
+  stripped from scan inputs before benchmarking.
+
 Examples
 
 Run specific files:
@@ -20,6 +25,11 @@ python3 scripts/remove_scan_purpose_vendor_fields.py \
   --output-dir data/sanitized_scans
 """
 
+import argparse
+from pathlib import Path
+
+import pandas as pd
+
 
 FIELDS_TO_CLEAR = {
     "Tracker Purpose",
@@ -32,6 +42,7 @@ FIELDS_TO_CLEAR = {
 
 
 def read_csv_flexible(path: Path) -> tuple[pd.DataFrame, str]:
+    """Read CSV with utf-8-sig fallback to latin-1; return (dataframe, encoding)."""
     last_exc = None
     for encoding in ("utf-8-sig", "latin-1"):
         try:
@@ -43,6 +54,7 @@ def read_csv_flexible(path: Path) -> tuple[pd.DataFrame, str]:
 
 
 def clear_optional_fields(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Clear configured optional columns and return (updated_df, touched_count)."""
     touched = 0
     for col in FIELDS_TO_CLEAR:
         if col in df.columns:
@@ -52,6 +64,7 @@ def clear_optional_fields(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
 
 
 def process_file(source_path: Path, source_root: Path, output_root: Path) -> tuple[Path, int]:
+    """Sanitize one file and write it under output_root preserving relative path."""
     relative_path = source_path.relative_to(source_root)
     output_path = output_root / relative_path
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,6 +76,7 @@ def process_file(source_path: Path, source_root: Path, output_root: Path) -> tup
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build CLI parser for input/output selection."""
     parser = argparse.ArgumentParser(
         description=(
             "Remove tracker purpose/vendor description content from scan files by clearing known columns."
@@ -88,6 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """CLI entrypoint for single-file or directory-based sanitization."""
     args = build_parser().parse_args()
     output_dir = Path(args.output_dir).resolve()
     input_files = [Path(path).resolve() for path in args.input_file]

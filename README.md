@@ -41,11 +41,14 @@ File lifecycle is simple:
 - Schema migrations: Alembic (Flask-Migrate)
 - App server: Gunicorn
 
-### Code Organization (Onion Style)
+### Code Organization (Onion Style Architecture)
 - `models/`: table schema and relationships
 - `daos/`: database operations (queries, inserts, updates, associations)
 - `services/`: business flow and orchestration
 - `routes/`: HTTP API layer and request validation
+
+### Database Schema
+![alt text](images/db_schema.png)
 
 ### Ingestion Flow (High-Level)
 - `IngestionService`: reads file, normalizes data, splits valid/invalid rows
@@ -58,13 +61,13 @@ File lifecycle is simple:
 ## Fixed Variables and Rationale
 
 To keep experiments comparable, runtime controls were fixed across test runs:
-- local app concurrency limit: `8`
+- App concurrency limit: `8`
 - Gunicorn threads: `8` (single worker)
 - SQLAlchemy pool: `pool_size=8`, `max_overflow=0`
-- burst shape: `80` concurrent incoming requests, one file per request
+- burst shape: `80` incoming requests, one file per request
 
 Rationale:
-- `workers=1` and `threads=8` were selected empirically for the local benchmark and then held fixed as the baseline for all benchmark runs.
+- `workers=1` and `threads=8` were selected empirically for the local experiment (E1) and then held fixed as the baseline for all experiments (E2-E4).
 - This gives bounded parallelism while still producing measurable queue/wait behavior under an 80-request burst.
 - Keeping these values fixed preserves controlled KPI comparison across workload shapes (`T1`-`T7`).
 - Higher thread counts (for example, `10` or `12`) are valid alternatives, but they increase lock-contention noise.
@@ -78,21 +81,19 @@ Rationale:
   Source-of-truth seed CSVs used to initialize baseline DB state.
 
 - `data/benchmarks/`  
-  Benchmark case folders (`T1`–`T7`) with:
-  - `input/`: benchmark files used as source workload,
-  - `manifest/`: test-case file lists and expected counts,
-  - `locust_results/`: per-case benchmark outputs (raw + aggregated).
+  Benchmark case folders (T1–T7) containing files with varied sizes and workload distributions. Note: this data is moved on GCS for E2-E4.
 
 - `data/monthly_tracker_audits/`  
   Runtime ingestion lifecycle data:
   - `input/<month>/`: files waiting to be processed,
   - `processed/<month>/`: processed-row outputs,
   - `failed/<month>/`: validation-failed-row outputs.
+  Note: this data is moved on GCS for E2-E4.
 
 ## Scripts Catalog (Project Utilities)
 
 - `scripts/generate_benchmark_workloads.py`  
-  Used to generate synthetic benchmark datasets (`T2`–`T7`) and manifests from `T1` baseline inputs.
+  Used to generate synthetic benchmark datasets (`T2`–`T7`) and manifests from `T1` baseline inputs (T1 is original data received from TrustArc).
 
 - `scripts/anonymize_client_files.py`  
   Used to replace client-identifying names in file content and file names with `CLIENT_X`.
@@ -104,11 +105,8 @@ Rationale:
 
 This README is project-level context.
 
-- For test-case design and generation details  
-  See `TEST_CASES.md` (create/maintain this as the detailed test-case spec).
+- For experiment definitions and setup see `EXPERIMENTS.md`.
 
-- For measured KPIs details
-  See `KPIS.md`
-  
-- For experiment definitions, setup, and interpretation  
-  See `EXPERIMENTS.md` (create/maintain this as the detailed experiment spec).
+- For test-case design and generation details see `TEST_CASES.md` 
+
+- For measured KPIs details see `KPIS.md`

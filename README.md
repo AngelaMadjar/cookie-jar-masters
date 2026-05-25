@@ -49,7 +49,7 @@ Because validation is row-based, the same source file can produce two outputs:
 - `daos/`: database operations (queries, inserts, updates, associations)
 - `services/`: business flow and orchestration
 - `routes/`: HTTP API layer and request validation
-<img src="images/onion_architecture.png" alt="Alt Text" width="100" height="100">
+<img src="images/onion_architecture.png" alt="Alt Text" width="200" height="200">
 
 ### Database Schema
 ![alt text](images/db_schema.png)

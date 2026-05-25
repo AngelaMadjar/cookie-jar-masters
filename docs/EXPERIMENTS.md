@@ -111,3 +111,20 @@ gcloud run jobs execute cookie-jar-upload-benchmarks-e3 \
   --wait \
   --args="^|^tools/upload-benchmarks/run_upload_benchmarks.py|--host=https://cookie-jar-app-e3-7ncplradoa-ew.a.run.app|--test-case=T1"
 ```
+
+## E4: Cloud Run + Cloud Tasks (branch: e4-cloudrun-cloudtasks)
+
+E4 keeps the same per-file ingestion contract, but changes the delivery model from direct HTTP load to queue-driven dispatch. A dedicated runner job (`tools/cloudtasks/run_cloudtasks_benchmarks.py`) stages benchmark files to runtime input, enqueues one Cloud Task per file, and lets Cloud Tasks call `/scan/ingest`.
+
+For increased clarity, E4 uses a dedicated storage bucket:
+- benchmark inputs + manifests: `gs://e4-data/benchmarks/<case_folder>/...`
+- runtime lifecycle folders: `gs://e4-data/monthly_tracker_audits/input|processed|failed/<month>/...`
+- per-case results: `gs://e4-data/benchmarks/<case_folder>/cloudtasks_results/...`
+
+#### How to Run E4 on GCP
+```bash
+gcloud run jobs execute cookie-jar-cloudtasks-e4 \
+  --region=europe-west1 \
+  --wait \
+  --args="^|^tools/cloudtasks/run_cloudtasks_benchmarks.py|--host=https://cookie-jar-app-e4-656924888958.europe-west1.run.app|--test-cases=T1|--repeats=3"
+```

@@ -23,8 +23,8 @@ def ingest_file():
 
     Branch difference:
     - E1 validates local filesystem paths under monthly input folder.
-    - E2 (this branch) validates GCS URIs and requires file_path under
-      `gs://e2-data/`.
+    - E4 (this branch) validates GCS URIs and requires file_path under
+      `gs://e4-data/`.
 
     On success, delegates to TrackerIngestionOrchestrator and returns a JSON
     summary containing count and timing/concurrency KPIs.
@@ -45,7 +45,7 @@ def ingest_file():
     if not month or not isinstance(month, str):
         return jsonify({"error": "bad request", "details": "month is required"}), 400
 
-    # E2-specific path policy: only gs:// URIs under the experiment bucket prefix
+    # E4-specific path policy: only gs:// URIs under the experiment bucket prefix
     # are accepted by this route.
     if not file_path.startswith("gs://"):
         return jsonify(
@@ -54,11 +54,11 @@ def ingest_file():
                 "details": "file_path must be a gs:// URI",
             }
         ), 400
-    if not file_path.startswith("gs://e2-data/"):
+    if not file_path.startswith("gs://e4-data/"):
         return jsonify(
             {
                 "error": "bad request",
-                "details": "file_path must be under gs://e2-data/",
+                "details": "file_path must be under gs://e4-data/",
             }
         ), 400
 

@@ -15,6 +15,26 @@ from statistics import median
 
 import requests
 
+"""
+Benchmark orchestrator for E1 local Locust experiments (T1-T7).
+
+Why this file exists:
+- Locust alone defines user behavior, but does not prepare deterministic
+  experiment state across repeated benchmark runs.
+- This script orchestrates the full run lifecycle so each repeat starts from a
+  controlled baseline and produces comparable KPI outputs.
+
+How orchestration works per run:
+1. reset/reseed database
+2. clear monthly runtime folders (input/processed/failed)
+3. stage exactly N benchmark files from the case manifest into runtime input
+4. execute Locust (which consumes staged files one-file-per-request)
+5. aggregate raw per-request records into run-level metrics and write outputs
+
+So this file is the experiment controller; `locustfile.py` is the request/user
+behavior executed inside that controlled run envelope.
+"""
+
 
 CASE_TO_FOLDER = {
     "T1": "T1_original",
@@ -28,6 +48,9 @@ CASE_TO_FOLDER = {
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Build CLI for benchmark execution controls.
+    """
     p = argparse.ArgumentParser(description="Run Locust benchmarks for T1-T7 with automated DB reset and file staging.")
     p.add_argument("--host", default="http://127.0.0.1:8080", help="Ingestion app base URL")
     p.add_argument("--month", default="2026-02")
@@ -43,14 +66,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _now_utc() -> str:
+    """Return current UTC timestamp in compact sortable format."""
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _split_csv(text: str) -> list[str]:
+    """Parse comma-separated CLI values into trimmed non-empty items."""
     return [x.strip() for x in text.split(",") if x.strip()]
 
 
 def _percentile(values: list[float], p: float) -> float:
+    """Compute percentile by nearest-rank index on sorted values."""
     if not values:
         return 0.0
     ordered = sorted(values)
@@ -59,6 +85,7 @@ def _percentile(values: list[float], p: float) -> float:
 
 
 def _post_ok(host: str, endpoint: str, payload: dict):
+    """POST helper that raises when response is not HTTP 200."""
     print(f"  -> POST {endpoint}")
     resp = requests.post(f"{host}{endpoint}", json=payload, timeout=1800)
     if resp.status_code != 200:
@@ -66,6 +93,7 @@ def _post_ok(host: str, endpoint: str, payload: dict):
 
 
 def reset_and_seed_db(host: str):
+    """Reset DB and seed CMP + tracker baseline tables for a clean run."""
     print("Step 1/5: Reset and reseed database")
     _post_ok(host, "/db/empty", {})
     _post_ok(host, "/db/populate/cmp", {})
@@ -74,6 +102,7 @@ def reset_and_seed_db(host: str):
 
 
 def clear_month_dirs(month: str):
+    """Clear local monthly input/processed/failed CSV folders."""
     print(f"Step 2/5: Clear monthly runtime folders for {month}")
     for branch in ("input", "processed", "failed"):
         folder = Path("data/monthly_tracker_audits") / branch / month
@@ -86,6 +115,9 @@ def clear_month_dirs(month: str):
 
 
 def load_manifest(case: str) -> list[str]:
+    """
+    Load generated source file paths for one test case from manifest JSON.
+    """
     case_folder = CASE_TO_FOLDER[case]
     manifest_path = Path("data/benchmarks") / case_folder / "manifest" / "manifest.json"
     if not manifest_path.exists():
@@ -98,6 +130,11 @@ def load_manifest(case: str) -> list[str]:
 
 
 def stage_files(file_paths: list[str], month: str, total_requests: int) -> list[str]:
+    """
+    Copy selected source CSV files from benchmark folder into monthly runtime input folder.
+
+    The first `total_requests` files from manifest order are staged.
+    """
     print(f"Step 3/5: Stage {total_requests} files into monthly input")
     if len(file_paths) < total_requests:
         raise ValueError(f"Manifest contains only {len(file_paths)} files, expected at least {total_requests}")
@@ -117,12 +154,19 @@ def stage_files(file_paths: list[str], month: str, total_requests: int) -> list[
 
 
 def case_results_dir(case: str, results_root_override: str) -> Path:
+    """Resolve output root for case run artifacts."""
     if results_root_override.strip():
         return Path(results_root_override)
     return Path("data/benchmarks") / CASE_TO_FOLDER[case] / "locust_results"
 
 
 def run_locust(args, run_spec_payload: dict, raw_json_path: Path) -> int:
+    """
+    Execute Locust and return process exit code.
+
+    Run metadata and output path are passed via environment variables consumed
+    by tools/locust/locustfile.py.
+    """
     env = os.environ.copy()
     env["LOCUST_RUN_SPEC_JSON"] = json.dumps(run_spec_payload)
     env["LOCUST_RAW_JSON_PATH"] = str(raw_json_path)
@@ -152,11 +196,22 @@ def run_locust(args, run_spec_payload: dict, raw_json_path: Path) -> int:
 
 
 def load_raw_records(path: Path) -> list[dict]:
+    """Load per-request records list from raw JSON file."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload.get("records") or []
 
 
 def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, repeat_index: int, locust_exit_code: int) -> dict:
+    """
+    Aggregate per-request raw records into run-level KPI row.
+
+    KPI groups:
+    - request success/failure counts
+    - makespan and throughput (files/s, records/s)
+    - p50/p95 latency metrics
+    - created/existing/failed row totals
+    - observed parallelism maxima
+    """
     ok_records = [r for r in records if r.get("ok")]
 
     queue_wait = [float(r.get("queue_wait_time_sec", 0) or 0) for r in ok_records]
@@ -208,6 +263,9 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case: str, repe
 
 
 def write_case_outputs(case_dir: Path, run_row: dict, records_payload: dict):
+    """
+    Write one run's raw JSON bundle and append one row to aggregated runs CSV.
+    """
     raw_dir = case_dir / "raw"
     agg_dir = case_dir / "aggregated"
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -227,6 +285,9 @@ def write_case_outputs(case_dir: Path, run_row: dict, records_payload: dict):
 
 
 def write_case_summary(case_dir: Path):
+    """
+    Build per-case summary.csv with mean/min/max across all completed runs.
+    """
     agg_dir = case_dir / "aggregated"
     runs_csv = agg_dir / "runs.csv"
     if not runs_csv.exists():
@@ -268,6 +329,9 @@ def write_case_summary(case_dir: Path):
 
 
 def main():
+    """
+    Entry point: execute selected test cases and repeats end-to-end.
+    """
     args = build_parser().parse_args()
     test_cases = _split_csv(args.test_cases)
     for c in test_cases:

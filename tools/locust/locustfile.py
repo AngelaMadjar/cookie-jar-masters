@@ -10,6 +10,25 @@ from typing import Any
 from locust import HttpUser, events, task
 from locust.exception import StopUser
 
+"""
+Locust scenario definition for the ingestion benchmark.
+
+Purpose:
+- define exactly what one virtual user does during a benchmark run
+- ensure one-file-per-request behavior for /scan/ingest
+- capture per-request outcomes/KPIs for later aggregation
+
+How it works:
+- run metadata (test_case/run_id) is loaded from run spec env inputs
+- staged file paths are loaded into a shared queue
+- each user claims one path, sends one /scan/ingest request, records result,
+  and stops when queue work is exhausted
+
+Produced artifact:
+- when the test ends, raw per-request records are written to
+  LOCUST_RAW_JSON_PATH for run-level KPI aggregation.
+"""
+
 
 RUN_SPEC_PATH = os.getenv("LOCUST_RUN_SPEC_PATH", "")
 RUN_SPEC_JSON = os.getenv("LOCUST_RUN_SPEC_JSON", "")
@@ -32,6 +51,21 @@ _stop_triggered = False
 
 
 def _load_run_spec() -> None:
+    """
+    Load run metadata and initialize the shared file queue.
+
+    Priority:
+    1. LOCUST_RUN_SPEC_JSON
+    2. LOCUST_RUN_SPEC_PATH
+
+    File paths are loaded from tools/locust/runtime_input_files_2026-02.json 
+    so this locustfile runs against the exact staged inputs for the run.
+
+    Queue model:
+    - file paths are loaded into one shared deque (`_file_queue`)
+    - virtual users pop from the left under a lock
+    - each popped item produces exactly one /scan/ingest request
+    """
     global _file_queue, _total_requests, _test_case, _run_id
     payload = None
     if RUN_SPEC_JSON:
@@ -54,6 +88,12 @@ def _load_run_spec() -> None:
 
 
 def _record_result(file_path: str, status_code: int, ok: bool, latency_ms: float, payload: dict[str, Any] | None, error: str | None):
+    """
+    Append one normalized per-request result row to in-memory run records.
+
+    Includes both transport-level info (status/latency/error) and app-returned
+    ingestion KPIs when response payload is available.
+    """
     entry = {
         "file_path": file_path,
         "status_code": status_code,
@@ -87,6 +127,9 @@ def _record_result(file_path: str, status_code: int, ok: bool, latency_ms: float
 
 
 def _extract_error(payload: dict[str, Any] | None, status_code: int) -> str:
+    """
+    Build a concise error message from response payload/status code.
+    """
     if not payload:
         return f"HTTP {status_code}"
     detail = payload.get("details")
@@ -101,6 +144,9 @@ def _extract_error(payload: dict[str, Any] | None, status_code: int) -> str:
 
 
 def _maybe_stop(environment) -> None:
+    """
+    Stop Locust runner once all queued requests have completed.
+    """
     global _stop_triggered
     with _lock:
         if _stop_triggered:
@@ -113,6 +159,9 @@ def _maybe_stop(environment) -> None:
 
 @events.test_start.add_listener
 def _on_test_start(environment, **kwargs):
+    """
+    Reset run-scoped globals and initialize queue/metadata at test start.
+    """
     global _requests_started, _requests_completed, _records, _stop_triggered
     _requests_started = 0
     _requests_completed = 0
@@ -123,6 +172,9 @@ def _on_test_start(environment, **kwargs):
 
 @events.test_stop.add_listener
 def _on_test_stop(environment, **kwargs):
+    """
+    Persist raw run output JSON for downstream aggregation scripts.
+    """
     if not RAW_JSON_PATH:
         return
     parent = os.path.dirname(RAW_JSON_PATH)
@@ -145,10 +197,21 @@ def _on_test_stop(environment, **kwargs):
 
 
 class IngestUser(HttpUser):
+    """
+    Virtual user that ingests exactly one file per task invocation.
+    """
     wait_time = lambda self: 0  # noqa: E731
 
     @task
     def ingest_one_file(self):
+        """
+        Pop one file path and call /scan/ingest once.
+
+        Queue semantics:
+        - work is coordinated through one shared `_file_queue`
+        - the lock ensures each file path is claimed once, even with many users
+        - when queue is empty, user stops after checking global completion state
+        """
         global _requests_started, _requests_completed
 
         file_path = None

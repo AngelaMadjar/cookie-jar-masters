@@ -27,3 +27,4 @@ This document defines the KPI sets used for cross-experiment comparison (`E1`-`E
 | 2 | `existing_trackers_total` | Total number of rows matched/resolved through the existing-tracker path across successful requests. | - E1,E2: `reporting_service.py`, `run_locust_benchmarks.py`<br>- E3: `reporting_service.py`, `run_upload_benchmarks.py` |
 | 3 | `failed_rows_total` | Total number of rows routed to failed output across successful requests in a run. | - E1,E2: `reporting_service.py`, `run_locust_benchmarks.py`<br>- E3: `reporting_service.py`, `run_upload_benchmarks.py` |
 
+*Note: for large and skewed existing-heavy workloads, `existing_trackers_total` may not match the nominal `80%` target due to limited unique seed data and resulting tracker-key duplication. Implications for existing trackers are explained in `TEST_CASES.md`.*

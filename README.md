@@ -82,10 +82,10 @@ Each experiment's code lives in its own dedicated branch:
 - e4-cloudrun-cloudtasks
 
 Reference docs:
-- Experiment definitions: EXPERIMENTS.md
-- Test-case design: TEST_CASES.md
-- KPI definitions: KPIS.md
-- Measured results: RESULTS.md
+- Experiment definitions: `EXPERIMENTS.md`
+- Test-case design: `TEST_CASES.md`
+- KPI definitions: `KPIS.md`
+- Measured results: `RESULTS.md`
 
 ## Fixed Variables and Rationale
 

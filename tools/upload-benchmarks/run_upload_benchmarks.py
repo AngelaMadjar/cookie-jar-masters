@@ -20,6 +20,10 @@ try:
     from google.cloud import monitoring_v3
 except Exception:  # pragma: no cover
     monitoring_v3 = None
+try:
+    from google.cloud import logging_v2
+except Exception:  # pragma: no cover
+    logging_v2 = None
 
 """
 E3 benchmark staging and aggregation runner.
@@ -70,6 +74,7 @@ CASE_ID_BY_FOLDER = {folder: case_id for case_id, folder in CASE_FOLDER_BY_ID.it
 
 _STORAGE_CLIENT: storage.Client | None = None
 _MONITORING_CLIENT = None
+_LOGGING_CLIENT = None
 _ID_TOKEN_CACHE: dict[str, str] = {}
 READ_RETRY_ATTEMPTS = 6
 READ_RETRY_SLEEP_SEC = 2
@@ -150,24 +155,22 @@ def _group_records_by_file(records: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
-def _finalize_file_outcomes(records: list[dict]) -> tuple[list[dict], list[dict], int]:
+def _finalize_file_outcomes(records: list[dict]) -> tuple[list[dict], list[dict]]:
     """
     Convert attempt-level raw records into file-level final outcomes.
 
     Returns:
     - final_success_records: one successful terminal record per filename
     - final_failed_records: one terminal failed record per filename
-    - attempt_failures_transient: failed attempts that later succeeded
 
     Why this is needed in E3:
     - Eventarc is at-least-once; one file can have multiple delivery attempts.
     - For comparability with E1/E2, request success/failure KPIs must be file-level,
-      while transient delivery failures are tracked separately as reliability pressure.
+      while final request outcome stays file-level.
     """
     grouped = _group_records_by_file(records)
     final_success_records: list[dict] = []
     final_failed_records: list[dict] = []
-    attempt_failures_transient = 0
 
     for _, attempts in grouped.items():
         first_success_idx = None
@@ -177,12 +180,11 @@ def _finalize_file_outcomes(records: list[dict]) -> tuple[list[dict], list[dict]
                 break
 
         if first_success_idx is not None:
-            attempt_failures_transient += sum(1 for rec in attempts[:first_success_idx] if rec.get("ok") is not True)
             final_success_records.append(attempts[first_success_idx])
         else:
             final_failed_records.append(attempts[-1])
 
-    return final_success_records, final_failed_records, attempt_failures_transient
+    return final_success_records, final_failed_records
 
 
 def _gcp_project_id() -> str | None:
@@ -213,6 +215,16 @@ def monitoring_client():
     if _MONITORING_CLIENT is None:
         _MONITORING_CLIENT = monitoring_v3.MetricServiceClient()
     return _MONITORING_CLIENT
+
+
+def logging_client():
+    """Get cached Cloud Logging client when available, otherwise None."""
+    global _LOGGING_CLIENT
+    if logging_v2 is None:
+        return None
+    if _LOGGING_CLIENT is None:
+        _LOGGING_CLIENT = logging_v2.Client()
+    return _LOGGING_CLIENT
 
 
 def parse_gs_uri(gs_uri: str) -> tuple[str, str]:
@@ -389,7 +401,7 @@ def wait_until_complete(
         input_remaining = count_blobs(TRIGGER_BUCKET, trigger_prefix)
         raw_records_count = count_blobs(RESULTS_BUCKET, raw_prefix)
         records = read_run_records(test_case_folder, run_id)
-        final_success_records, _, _ = _finalize_file_outcomes(records)
+        final_success_records, _ = _finalize_file_outcomes(records)
         final_success_files = len(final_success_records)
         elapsed = int(time.time() - start)
         print(
@@ -503,16 +515,65 @@ def cloud_run_max_active_instances_observed(records: list[dict]) -> int | None:
         return None
 
 
+def cloud_run_platform_429_count(records: list[dict]) -> int | None:
+    """
+    Count platform-level Cloud Run HTTP 429 responses for /scan/ingest during the run window.
+
+    This captures delivery attempts rejected before app-level handler execution,
+    which are not represented by per-attempt raw records written in-route.
+    """
+    project_id = _gcp_project_id()
+    if not project_id:
+        return None
+
+    starts = [_parse_utc_iso(r.get("request_received_timestamp")) for r in records]
+    finishes = [_parse_utc_iso(r.get("response_finished_timestamp")) for r in records]
+    starts = [x for x in starts if x is not None]
+    finishes = [x for x in finishes if x is not None]
+    if not starts or not finishes:
+        return None
+
+    # Expand window to include early rejected attempts before first successful in-app record.
+    start_dt = min(starts) - timedelta(minutes=10)
+    end_dt = max(finishes) + timedelta(minutes=5)
+    if end_dt <= start_dt:
+        end_dt = start_dt + timedelta(minutes=1)
+
+    client = logging_client()
+    if client is None:
+        return None
+
+    flt = (
+        'resource.type="cloud_run_revision"\n'
+        f'resource.labels.service_name="{CLOUD_RUN_SERVICE_NAME}"\n'
+        f'resource.labels.location="{CLOUD_RUN_REGION}"\n'
+        f'httpRequest.requestMethod="POST"\n'
+        'httpRequest.status=429\n'
+        'httpRequest.requestUrl:"/scan/ingest"\n'
+        f'timestamp>="{start_dt.isoformat().replace("+00:00", "Z")}"\n'
+        f'timestamp<="{end_dt.isoformat().replace("+00:00", "Z")}"'
+    )
+
+    try:
+        count = 0
+        for _ in client.list_entries(
+            resource_names=[f"projects/{project_id}"],
+            filter_=flt,
+            order_by=logging_v2.DESCENDING,
+        ):
+            count += 1
+        return int(count)
+    except Exception:
+        return None
+
+
 def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -> dict:
     """
     Aggregate attempt-level raw records into file-level benchmark KPIs.
 
-    Includes E3 reliability KPIs:
-    - files_succeeded_final
-    - files_failed_final
-    - attempt_failures_transient
+    Includes platform-level 429 count from Cloud Logging.
     """
-    ok_records, final_failed_records, attempt_failures_transient = _finalize_file_outcomes(records)
+    ok_records, final_failed_records = _finalize_file_outcomes(records)
 
     queue_wait = [float(r.get("queue_wait_time_sec", 0) or 0) for r in ok_records]
     processing = [float(r.get("processing_time_sec", 0) or 0) for r in ok_records]
@@ -539,12 +600,8 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -
 
     files_per_sec = (files_count / makespan_sec) if makespan_sec > 0 else 0.0
     records_per_sec = (records_count / makespan_sec) if makespan_sec > 0 else 0.0
-    # E3 reliability KPIs:
-    # - files_succeeded_final: unique files that reached successful completion
-    # - files_failed_final: unique files without successful completion at run end
-    # - attempt_failures_transient: failed attempts that later succeeded
-    # These are added because Eventarc can deliver multiple attempts per file.
     files_succeeded_final = files_count
+    platform_429_count = cloud_run_platform_429_count(records)
 
     return {
         "run_id": run_id,
@@ -567,9 +624,7 @@ def aggregate_run_metrics(records: list[dict], run_id: str, test_case_id: str) -
         "max_active_processing_requests_observed": int(max(active_parallel) if active_parallel else 0),
         "max_active_requests_seen_observed": int(max(max_active_seen) if max_active_seen else 0),
         "cloud_run_max_active_instances_observed": cloud_run_max_active_instances_observed(records),
-        "files_succeeded_final": files_succeeded_final,
-        "files_failed_final": files_failed_final,
-        "attempt_failures_transient": attempt_failures_transient,
+        "platform_429_count": int(platform_429_count) if platform_429_count is not None else "",
     }
 
 

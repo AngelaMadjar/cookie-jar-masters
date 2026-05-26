@@ -73,6 +73,7 @@ Rationale:
 - Higher thread counts (for example, `10` or `12`) are valid alternatives, but they increase lock-contention noise.
 
 
+
 ## Data Layout and Ownership
 
 `data/` contains all project datasets and benchmark artifacts.

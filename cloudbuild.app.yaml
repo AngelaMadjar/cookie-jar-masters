@@ -41,7 +41,7 @@ steps:
       - run
       - jobs
       - deploy
-      - cookie-jar-migrate-e3
+      - cookie-jar-migrate-e2
       - --image=europe-west1-docker.pkg.dev/dept-dinl-angela/cookie-jar/cookie-jar-app:$COMMIT_SHA
       - --region=europe-west1
       - --service-account=angela-masters@dept-dinl-angela.iam.gserviceaccount.com
@@ -57,7 +57,7 @@ steps:
       - run
       - jobs
       - execute
-      - cookie-jar-migrate-e3
+      - cookie-jar-migrate-e2
       - --region=europe-west1
       - --wait
 

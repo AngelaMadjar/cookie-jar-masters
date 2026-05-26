@@ -30,7 +30,6 @@ from statistics import median
 from urllib.parse import quote
 
 import requests
-from google.api_core.exceptions import NotFound
 from google.cloud import storage
 from google.cloud import tasks_v2
 
@@ -119,16 +118,6 @@ def download_text_gs(gs_uri: str) -> str:
     """Download object text content from GCS."""
     bucket_name, blob_name = parse_gs_uri(gs_uri)
     return storage_client().bucket(bucket_name).blob(blob_name).download_as_text()
-
-
-def download_text_gs_optional(gs_uri: str) -> str | None:
-    """Download object text if present, else return None."""
-    bucket_name, blob_name = parse_gs_uri(gs_uri)
-    blob = storage_client().bucket(bucket_name).blob(blob_name)
-    try:
-        return blob.download_as_text()
-    except NotFound:
-        return None
 
 
 def delete_prefix_gs(bucket_name: str, prefix: str) -> int:
@@ -255,6 +244,7 @@ def enqueue_tasks(
     oidc_sa_email: str,
     staged_paths: list[str],
     test_case: str,
+    test_case_folder: str,
     run_id: str,
     month: str,
 ) -> list[str]:
@@ -262,7 +252,7 @@ def enqueue_tasks(
     Enqueue one Cloud Task per staged file.
 
     Each task sends POST request to <host><endpoint> with payload:
-    file_path, test_case, run_id, month.
+    file_path, test_case, test_case_folder, run_id, month.
     """
     print("Step 4/5: Enqueue Cloud Tasks")
     queue_path = tasks_client().queue_path(queue_project, queue_location, queue_name)
@@ -273,6 +263,7 @@ def enqueue_tasks(
         payload = {
             "file_path": file_path,
             "test_case": test_case,
+            "test_case_folder": test_case_folder,
             "run_id": run_id,
             "month": month,
         }
@@ -633,6 +624,7 @@ def main():
         for repeat_index in range(1, args.repeats + 1):
             run_id = f"run_{_now_utc()}"
             case_dir = case_results_dir(case, args.results_dir, args.benchmark_bucket)
+            case_folder = CASE_TO_FOLDER[case]
             print(f"\n=== {case} repeat {repeat_index} ({run_id}) ===")
 
             reset_and_seed_db(args.host)
@@ -650,6 +642,7 @@ def main():
                 oidc_sa_email=args.oidc_service_account_email,
                 staged_paths=staged_paths,
                 test_case=case,
+                test_case_folder=case_folder,
                 run_id=run_id,
                 month=args.month,
             )

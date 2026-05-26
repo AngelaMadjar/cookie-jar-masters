@@ -4,32 +4,16 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 from google.api_core.exceptions import NotFound
-from google.cloud import storage
 
 from app.services.tracker_ingestion import TrackerIngestionOrchestrator
+from app.services.tracker_ingestion.scan_lifecycle_service import ScanLifecycleService
 
 bp = Blueprint("tracker_ingestion", __name__, url_prefix="/scan")
 
-CASE_TO_FOLDER = {
-    "T1": "T1_original",
-    "T2": "T2_medium_existing_heavy",
-    "T3": "T3_medium_new_heavy",
-    "T4": "T4_large_existing_heavy",
-    "T5": "T5_large_new_heavy",
-    "T6": "T6_skewed_existing_heavy",
-    "T7": "T7_skewed_new_heavy",
-}
-_STORAGE_CLIENT = None
+E4_RESULTS_BUCKET = "e4-data"
 
 
-def _storage_client():
-    global _STORAGE_CLIENT
-    if _STORAGE_CLIENT is None:
-        _STORAGE_CLIENT = storage.Client()
-    return _STORAGE_CLIENT
-
-
-def _safe_record_blob_name(test_case: str, run_id: str, file_path: str, attempt_id: str) -> str:
+def _safe_record_blob_name(test_case_folder: str, run_id: str, file_path: str, attempt_id: str) -> str:
     """
     E4 adaptation (aligned to E3 raw layout):
     Build per-attempt object path so retries do not overwrite each other.
@@ -37,11 +21,10 @@ def _safe_record_blob_name(test_case: str, run_id: str, file_path: str, attempt_
     Path shape:
     benchmarks/<case_folder>/cloudtasks_results/raw/<run_id>/<filename>/<attempt_id>.json
     """
-    case_folder = CASE_TO_FOLDER.get(test_case)
-    if not case_folder:
+    if not test_case_folder:
         return ""
     filename = Path(file_path).name
-    return f"benchmarks/{case_folder}/cloudtasks_results/raw/{run_id}/{filename}/{attempt_id}.json"
+    return f"benchmarks/{test_case_folder}/cloudtasks_results/raw/{run_id}/{filename}/{attempt_id}.json"
 
 
 def _cloudtasks_attempt_id() -> str:
@@ -66,7 +49,13 @@ def _cloudtasks_attempt_id() -> str:
     return f"{safe_task_name}-r{retry_count}-e{execution_count}-{ts}"
 
 
-def _write_e4_request_record(file_path: str, test_case: str, run_id: str, attempt_id: str, record: dict):
+def _write_e4_request_record(
+    file_path: str,
+    test_case_folder: str,
+    run_id: str,
+    attempt_id: str,
+    record: dict,
+):
     """
     E4 adaptation:
     Persist one per-attempt request record in GCS so Cloud Tasks runs can be
@@ -82,12 +71,16 @@ def _write_e4_request_record(file_path: str, test_case: str, run_id: str, attemp
       file-level metrics (queue, processing, latency, created/existing/failed
       counts) using the same formulas as E1-E3.
     """
-    blob_name = _safe_record_blob_name(test_case=test_case, run_id=run_id, file_path=file_path, attempt_id=attempt_id)
+    blob_name = _safe_record_blob_name(
+        test_case_folder=test_case_folder,
+        run_id=run_id,
+        file_path=file_path,
+        attempt_id=attempt_id,
+    )
     if not blob_name:
         return
 
-    bucket_name = "e4-data"
-    _storage_client().bucket(bucket_name).blob(blob_name).upload_from_string(
+    ScanLifecycleService.storage_client().bucket(E4_RESULTS_BUCKET).blob(blob_name).upload_from_string(
         json.dumps(record, ensure_ascii=True),
         content_type="application/json",
     )
@@ -101,6 +94,7 @@ def ingest_file():
     Expected JSON payload:
     - file_path: source file path/URI
     - test_case: benchmark case label (for example T1-T7)
+    - test_case_folder: benchmark case folder label (for example T1_original)
     - run_id: benchmark run identifier
     - month: workload month folder (default: "2026-02")
 
@@ -124,6 +118,7 @@ def ingest_file():
     payload = request.get_json(silent=True) or {}
     file_path = payload.get("file_path")
     test_case = payload.get("test_case")
+    test_case_folder = payload.get("test_case_folder")
     run_id = payload.get("run_id")
     month = payload.get("month", "2026-02")
     attempt_id = _cloudtasks_attempt_id()
@@ -132,6 +127,8 @@ def ingest_file():
         return jsonify({"error": "bad request", "details": "file_path is required"}), 400
     if not test_case or not isinstance(test_case, str):
         return jsonify({"error": "bad request", "details": "test_case is required"}), 400
+    if not test_case_folder or not isinstance(test_case_folder, str):
+        return jsonify({"error": "bad request", "details": "test_case_folder is required"}), 400
     if not run_id or not isinstance(run_id, str):
         return jsonify({"error": "bad request", "details": "run_id is required"}), 400
     if not month or not isinstance(month, str):
@@ -172,7 +169,7 @@ def ingest_file():
         record["file_path"] = file_path
         _write_e4_request_record(
             file_path=file_path,
-            test_case=test_case,
+            test_case_folder=test_case_folder,
             run_id=run_id,
             attempt_id=attempt_id,
             record=record,
@@ -194,6 +191,7 @@ def ingest_file():
             "error": str(exc),
             "file_path": file_path,
             "test_case": test_case,
+            "test_case_folder": test_case_folder,
             "run_id": run_id,
             "month": month,
             "request_received_timestamp": request_received_timestamp.isoformat(),
@@ -201,7 +199,7 @@ def ingest_file():
         try:
             _write_e4_request_record(
                 file_path=file_path,
-                test_case=test_case,
+                test_case_folder=test_case_folder,
                 run_id=run_id,
                 attempt_id=attempt_id,
                 record=failure_record,

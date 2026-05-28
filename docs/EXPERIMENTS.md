@@ -1,5 +1,7 @@
 # Experiments
-This document explains how benchmark experiments were set up and executed. It starts with settings shared across all experiments, then covers cloud specific setup, and finally details each individual experiment
+This document explains how benchmark experiments were set up and executed. It starts with settings shared across all experiments, then covers cloud specific setup, and finally details each individual experiment. Image below shows each experiment's architecture on GCP and locally.
+![alt text](images/gcp_architecture.png)
+
 
 ## Cross-Experiment Methodology
 ### Fixed variables 
@@ -78,6 +80,13 @@ python3 tools/locust/run_locust_benchmarks.py --test-cases T1 --repeats 3
 ```
 
 ## E2: Cloud Run HTTP (branch: e2-cloudrun-http)
+### GCP resources:
+- *Cloud Build triggers:* e2-app-trigger, e2-locust-trigger
+- *Cloud Run service:* cookie-jar-app-e2
+- *Cloud Run jobs:* cookie-jar-migrate-e2, cookie-jar-locust-e2
+- *Cloud SQL instance:* cookie-jar-masters
+- *Secret Manager secret:* cookie-jar-masters-db-password
+- *GCS bucket:* e2-data
 
 E2 uses the same core workload idea as E1, but deployed on cloud infrastructure. The request model is still synchronous HTTP with one file per `/scan/ingest` request, and Locust still issues an 80-request burst.
 
@@ -98,6 +107,14 @@ gcloud run jobs execute cookie-jar-locust-e2 \
 ```
 
 ## E3: Cloud Run Event-Driven (branch: e3-cloudrun-eventdriven)
+### GCP resources:
+- *Cloud Build triggers:* e3-app-trigger, e3-upload-benchmarks-trigger
+- *Cloud Run service:* cookie-jar-app-e3
+- *Cloud Run jobs:* cookie-jar-migrate-e2, cookie-jar-upload-benchmarks-e3
+- *Cloud SQL instance:* cookie-jar-masters
+- *Secret Manager secret:* cookie-jar-masters-db-password
+- *Eventarc trigger:* cookie-jar-app-e3-storage-finalized
+- *GCS bucket:* e3-data-benchmarks, e3-data-monthly-audit-trackers
 
 E3 changes the delivery path from direct HTTP load to storage events. There is no Locust job in this experiment. Instead, a dedicated uploader job (`tools/upload-benchmarks/run_upload_benchmarks.py`) stages benchmark files from the E2 source bucket (`gs://e2-data/benchmarks/<case_folder>/input...`) into the E3 trigger bucket (`gs://e3-data-benchmarks/<case_folder>/input/...`). Each uploaded object generates an Eventarc finalize event, which invokes the Cloud Run app for per-file processing.
 
@@ -113,6 +130,14 @@ gcloud run jobs execute cookie-jar-upload-benchmarks-e3 \
 ```
 
 ## E4: Cloud Run + Cloud Tasks (branch: e4-cloudrun-cloudtasks)
+### GCP resources:
+- *Cloud Build triggers:* e4-app-trigger, e4-cloudtasks-trigger
+- *Cloud Run service:* cookie-jar-app-e4
+- *Cloud Run jobs:* cookie-jar-migrate-e2, cookie-jar-cloudtasks-e4
+- *Cloud SQL instance:* cookie-jar-masters
+- *Secret Manager secret:* cookie-jar-masters-db-password
+- *Cloud Tasts queue:* cookie-jar-e4-queue
+- *GCS bucket:* e4-data
 
 E4 keeps the same per-file ingestion contract, but changes the delivery model from direct HTTP load to queue-driven dispatch. A dedicated runner job (`tools/cloudtasks/run_cloudtasks_benchmarks.py`) stages benchmark files to runtime input, enqueues one Cloud Task per file, and lets Cloud Tasks call `/scan/ingest`.
 
@@ -128,3 +153,4 @@ gcloud run jobs execute cookie-jar-cloudtasks-e4 \
   --wait \
   --args="^|^tools/cloudtasks/run_cloudtasks_benchmarks.py|--host=https://cookie-jar-app-e4-656924888958.europe-west1.run.app|--test-cases=T1|--repeats=3"
 ```
+

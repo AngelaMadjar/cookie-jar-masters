@@ -81,10 +81,11 @@ Each experiment's code lives in its own dedicated branch:
 - e3-cloudrun-eventdriven
 - e4-cloudrun-cloudtasks
 
+![alt text](docs/images/gcp_architecture.png)
 Reference docs:
-- Experiment definitions: [docs/EXPERIMENTS.md](/Users/angela.madjar/Angela/Finki-Masters/cookie-jar-masters/docs/EXPERIMENTS.md)
-- Test-case design: [docs/TEST_CASES.md](/Users/angela.madjar/Angela/Finki-Masters/cookie-jar-masters/docs/TEST_CASES.md)
-- KPI definitions: [docs/KPIS.md](/Users/angela.madjar/Angela/Finki-Masters/cookie-jar-masters/docs/KPIS.md)
-- Measured results: `RESULTS.md`
+- Experiment definitions: [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)
+- Test-case design: [docs/TEST_CASES.md](docs/TEST_CASES.md)
+- KPI definitions: [docs/KPIS.md](docs/KPIS.md)
+- Results: cross-experiments results are consolidated in [docs/results](docs/results)
 
-**DISCLAIMER:** I want to be upfront that I used AI tools to help adapt the original codebase for this project, while the project’s core idea, design decisions, and the design of experiment and test-case framework are my own work.
+**DISCLAIMER:** AI tools were used to support the adaptation of the original client codebase for this class project. The core research idea, design decisions, experimental methodology and test-case framework remain my own authentic work.

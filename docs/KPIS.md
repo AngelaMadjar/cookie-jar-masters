@@ -4,6 +4,9 @@ This document defines the KPI sets used for cross-experiment comparison (`E1`-`E
 - **Core KPIs**: used for performance and scalability conclusions (throughput, response time, run duration, queueing/processing behavior, completion rates).
 - **Control KPIs**: used to validate workload realization (new/existing/failed row mix) before interpreting Core KPI differences.
 
+All Core and Control KPIs listed in the tables below were collected and are present in the aggregated `summary.csv` files for every experiment/test-case combination. The research report focuses on a subset of four Core KPIs: `total_processing_time_sec` (makespan), `files_per_sec`, `records_per_sec`, and `end_to_end_latency_p95_sec`. 
+
+
 ## Core KPIs 
 | # | KPI | Description | Formula | Calculated in |
 |---|---|---|---|---|

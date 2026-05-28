@@ -1,0 +1,2 @@
+run_id,test_case,repeat_index,locust_exit_code,requests_total,requests_ok,requests_failed,total_processing_time_sec,files_per_sec,records_per_sec,processing_time_p50_sec,processing_time_p95_sec,end_to_end_latency_p95_sec,queue_wait_time_p95_sec,created_trackers_total,existing_trackers_total,failed_rows_total,max_active_processing_requests_observed,max_active_requests_seen_observed
+run_20260526T200348Z,T6,1,0,80,80,0,327.509957,0.244267,658.911265,1.631998,1.962992,1.963146,0.000272,21580,155467,21580,6,8

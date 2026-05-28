@@ -3,15 +3,15 @@
 Cookie Jar Masters is a file-ingestion benchmark project built around a real digital-marketing use case.  
 It tests how a tracker-processing service behaves under controlled burst load as workload shape and file size change.
 
-## Project Context (Business + Research)
+## Project Context
 
 This project is inspired by a GDPR transparency workflow. In practice, CMP scan files contain trackers detected on websites, and those trackers must be enriched with metadata so website users can review what data is collected.
 
-In the original business process, monthly tracker scans arrive per domain. The ingestion service cross-references scan records against preseeded tracker data:
-- if a tracker already exists, existing metadata is reused,
-- if a tracker is new, it is inserted and can later be manually completed in a UI workflow.
+In the original business process, monthly tracker scans are delivered per domain: 80 domains produce 80 scan files (CSV) each month. The ingestion service cross-references scan records against preseeded tracker data:
+- if a tracker already exists, existing metadata is reused
+- if a tracker is new, it is inserted and metadata can later be manually completed in a UI workflow.
 
-This class project narrows scope to one technical slice: **ingesting and cross-referencing tracker scan files for performance/scalability benchmarking**.
+This class project narrows scope to one technical slice: **ingesting and cross-referencing tracker scan files for performance and scalability benchmarking**.
 
 All client-identifying names in files were anonymized. Any original client token is replaced by `CLIENT_X`.
 
@@ -23,10 +23,9 @@ The main endpoint is:
 POST /scan/ingest
 ```
 
-One request processes exactly one scan file path.  
-At row level:
-- valid rows go through reference resolution and tracker existing/new handling,
-- invalid rows are routed to failed output (row-level failure, not file-level failure).
+Each request processes one scan file. Processing happens at row level:
+- valid rows continue through reference resolution and existing/new tracker handling,
+- invalid rows are rejected and written to failed output.
 
 File lifecycle is simple:
 - file starts in `input/`,
@@ -34,10 +33,14 @@ File lifecycle is simple:
 - failed rows are written to `failed/`,
 - input file is removed after processing.
 
+Because validation is row-based, the same source file can produce two outputs:
+- successful rows are written under that file name in processed/,
+- failed rows are written under that file name in failed/.
+
 ## Tech Stack and Architecture
 - Backend: Flask
-- Persistence: SQLAlchemy ORM
 - Database: PostgreSQL
+- ORM: SQLAlchemy
 - Schema migrations: Alembic (Flask-Migrate)
 - App server: Gunicorn
 
@@ -46,68 +49,43 @@ File lifecycle is simple:
 - `daos/`: database operations (queries, inserts, updates, associations)
 - `services/`: business flow and orchestration
 - `routes/`: HTTP API layer and request validation
+<img src="docs/images/onion__architecture.png" alt="Alt Text" width="300" height="300">
 
 ### Database Schema
-![alt text](images/db_schema.png)
+![alt text](docs/images/db_schema.png)
 
-### Ingestion Flow (High-Level)
-- `IngestionService`: reads file, normalizes data, splits valid/invalid rows
-- `ReferenceDataService`: resolves and prepares lookup/reference mappings
-- `TrackerUpsertService`: matches existing trackers and inserts missing ones
-- `PurposeService`: creates purpose links when purpose values are present
-- `ReportingService`: builds output frames and count summaries
-- `ScanLifecycleService`: writes processed/failed outputs and finalizes file lifecycle
+### Ingestion Flow 
+`TrackerIngestionOrchestrator` runs these services sequentially for each file:
+- `IngestionService`: reads the file, normalizes columns/values, and splits valid vs invalid rows via `ValidationService`
+- `ReferenceDataService`: ensures required reference entities exist and builds in-memory lookup maps (value -> id) for foreign-key resolution
+- `TrackerUpsertService`:  resolves tracker identity keys, reuses existing trackers, inserts missing trackers, and ensures tracker-to-CMP links
+- `PurposeService`: creates tracker-purpose links for rows that include purpose values (no-op for benchmark inputs) 
+- `ReportingService`: builds per-file processed/failed output frames and base count metrics
+- `ScanLifecycleService`: persists those outputs to storage under the source file name and moves the consumed input file
 
-## Fixed Variables and Rationale
-
-To keep experiments comparable, runtime controls were fixed across test runs:
-- App concurrency limit: `8`
-- Gunicorn threads: `8` (single worker)
-- SQLAlchemy pool: `pool_size=8`, `max_overflow=0`
-- burst shape: `80` incoming requests, one file per request
-
-Rationale:
-- `workers=1` and `threads=8` were selected empirically for the local experiment (E1) and then held fixed as the baseline for all experiments (E2-E4).
-- This gives bounded parallelism while still producing measurable queue/wait behavior under an 80-request burst.
-- Keeping these values fixed preserves controlled KPI comparison across workload shapes (`T1`-`T7`).
-- Higher thread counts (for example, `10` or `12`) are valid alternatives, but they increase lock-contention noise.
-
-
-
-## Data Layout and Ownership
-
-`data/` contains all project datasets and benchmark artifacts.
-
-- `data/seed/`  
-  Source-of-truth seed CSVs used to initialize baseline DB state.
-
-- `data/benchmarks/`  
-  Benchmark case folders (T1–T7) containing files with varied sizes and workload distributions. Note: this data is moved on GCS for E2-E4.
-
-- `data/monthly_tracker_audits/`  
-  Runtime ingestion lifecycle data:
-  - `input/<month>/`: files waiting to be processed,
-  - `processed/<month>/`: processed-row outputs,
-  - `failed/<month>/`: validation-failed-row outputs.
-  Note: this data is moved on GCS for E2-E4.
-
-## Scripts Catalog (Project Utilities)
-
-- `scripts/generate_benchmark_workloads.py`  
-  Used to generate synthetic benchmark datasets (`T2`–`T7`) and manifests from `T1` baseline inputs (T1 is original data received from TrustArc).
-
+## Scripts
+Executed once during initial dataset preparation, using the original TrustArc scans (`T1`) as the baseline. The resulting benchmark datasets were then reused across all experiments to keep inputs consistent and results comparable.
 - `scripts/anonymize_client_files.py`  
-  Used to replace client-identifying names in file content and file names with `CLIENT_X`.
+  Used to replace client-identifying names in file content and file names with `CLIENT_X`. 
 
 - `scripts/remove_scan_purpose_vendor_fields.py`  
   Used to clear purpose/description fields in scan inputs and keep benchmark focus on tracker cross-referencing behavior.
 
-## Where to Read Next
+- `scripts/generate_benchmark_workloads.py`  
+  Used to generate synthetic benchmark datasets (`T2`–`T7`) and manifests from `T1` baseline inputs.
 
-This README is project-level context.
+## Experiments, Test Cases, KPIs and Results
+Each experiment's code lives in its own dedicated branch:
+- e1-local
+- e2-cloudrun-http
+- e3-cloudrun-eventdriven
+- e4-cloudrun-cloudtasks
 
-- For experiment definitions and setup see `EXPERIMENTS.md`.
+![alt text](docs/images/gcp_architecture.png)
+Reference docs:
+- Experiment definitions: [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)
+- Test-case design: [docs/TEST_CASES.md](docs/TEST_CASES.md)
+- KPI definitions: [docs/KPIS.md](docs/KPIS.md)
+- Results: cross-experiments results are consolidated in [docs/results](docs/results)
 
-- For test-case design and generation details see `TEST_CASES.md` 
-
-- For measured KPIs details see `KPIS.md`
+**DISCLAIMER:** AI tools were used to support the adaptation of the original client codebase for this class project. The core research idea, design decisions, experimental methodology and test-case framework remain my own authentic work.

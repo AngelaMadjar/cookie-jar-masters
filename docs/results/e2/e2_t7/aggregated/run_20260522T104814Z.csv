@@ -1,0 +1,2 @@
+run_id,test_case,repeat_index,locust_exit_code,requests_total,requests_ok,requests_failed,total_processing_time_sec,files_per_sec,records_per_sec,processing_time_p50_sec,processing_time_p95_sec,end_to_end_latency_p95_sec,queue_wait_time_p95_sec,created_trackers_total,existing_trackers_total,failed_rows_total,max_active_processing_requests_observed,max_active_requests_seen_observed,cloud_run_max_active_instances_observed
+run_20260522T104814Z,T7,1,0,80,80,0,652.685514,0.122571,330.633966,2.338858,2.977976,2.978213,0.000232,172640,19420,21580,8,8,

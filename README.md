@@ -49,10 +49,10 @@ Because validation is row-based, the same source file can produce two outputs:
 - `daos/`: database operations (queries, inserts, updates, associations)
 - `services/`: business flow and orchestration
 - `routes/`: HTTP API layer and request validation
-<img src="images/onion_architecture.png" alt="Alt Text" width="300" height="300">
+<img src="docs/images/onion__architecture.png" alt="Alt Text" width="300" height="300">
 
 ### Database Schema
-![alt text](images/db_schema.png)
+![alt text](docs/images/db_schema.png)
 
 ### Ingestion Flow 
 `TrackerIngestionOrchestrator` runs these services sequentially for each file:
@@ -81,22 +81,11 @@ Each experiment's code lives in its own dedicated branch:
 - e3-cloudrun-eventdriven
 - e4-cloudrun-cloudtasks
 
+![alt text](docs/images/gcp_architecture.png)
 Reference docs:
-- Experiment definitions: `EXPERIMENTS.md`
-- Test-case design: `TEST_CASES.md`
-- KPI definitions: `KPIS.md`
-- Measured results: `RESULTS.md`
+- Experiment definitions: [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)
+- Test-case design: [docs/TEST_CASES.md](docs/TEST_CASES.md)
+- KPI definitions: [docs/KPIS.md](docs/KPIS.md)
+- Results: cross-experiments results are consolidated in [docs/results](docs/results)
 
-## Fixed Variables and Rationale
-
-To keep experiments comparable, runtime controls were fixed across test runs:
-- App concurrency limit: `8`
-- Gunicorn threads: `8` (single worker)
-- SQLAlchemy pool: `pool_size=8`, `max_overflow=0`
-- burst shape: `80` incoming requests, one file per request
-
-Rationale:
-- `workers=1` and `threads=8` were selected empirically for the local experiment (E1) and then held fixed as the baseline for all experiments (E2-E4).
-- This gives bounded parallelism while still producing measurable queue/wait behavior under an 80-request burst.
-- Keeping these values fixed preserves controlled KPI comparison across workload shapes (`T1`-`T7`).
-- Increasing thread count (e.g., to 10 or 12) is a valid option for DB heavy workloads, but it amplified lock-contention noise, which was already observed at 8 threads and mitigated with exponential-backoff retries in the DAO layer.
+**DISCLAIMER:** AI tools were used to support the adaptation of the original client codebase for this class project. The core research idea, design decisions, experimental methodology and test-case framework remain my own authentic work.
